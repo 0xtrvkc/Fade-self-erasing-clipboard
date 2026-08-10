@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Fade — self-erasing clipboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1b1d1f;
+    --bg-raised:#232629;
+    --paper:#f5f1e6;
+    --paper-dim:#e7e1d2;
+    --ink:#2b2a26;
+    --ink-dim:#6b675c;
+    --accent-fresh:#1f7a4d;
+    --accent-link:#2f5fa8;
+    --accent-warn:#b8511d;
+    --accent-danger:#a32020;
+    --hairline:#33373a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    background-image:
+      radial-gradient(circle at 15% 8%, rgba(255,255,255,0.035), transparent 40%),
+      radial-gradient(circle at 85% 92%, rgba(255,255,255,0.03), transparent 40%);
+    color:var(--paper);
+    font-family:'JetBrains Mono', monospace;
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+  }
+  header{
+    padding:22px 18px 16px;
+    text-align:center;
+    border-bottom:1px solid var(--hairline);
+    position:relative;
+  }
+  header .eyebrow{
+    font-family:'Space Grotesk', sans-serif;
+    font-size:11px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin-bottom:6px;
+  }
+  header h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:22px;
+    letter-spacing:.08em;
+    margin:0;
+    color:var(--paper);
+  }
+  header h1::before, header h1::after{ content:"·"; color:var(--accent-fresh); margin:0 8px; }
+
+  /* the "printer slot" the new slips emerge from */
+  .slot{
+    height:6px;
+    max-width:340px;
+    margin:14px auto 0;
+    background:repeating-linear-gradient(90deg, var(--hairline) 0 6px, transparent 6px 11px);
+    border-radius:3px;
+    opacity:.8;
+  }
+
+  #feed{
+    flex:1;
+    overflow-y:auto;
+    padding:20px 14px 24px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+  }
+  #empty{
+    color:var(--ink-dim);
+    font-size:13px;
+    text-align:center;
+    margin-top:60px;
+    max-width:280px;
+    line-height:1.6;
+  }
+
+  .slip{
+    width:100%;
+    max-width:420px;
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:2px;
+    padding:14px 16px 16px;
+    position:relative;
+    box-shadow:0 10px 24px rgba(0,0,0,.28);
+    animation:emerge .38s cubic-bezier(.2,.8,.2,1);
+    transition:opacity .4s linear, filter .4s linear;
+  }
+  @keyframes emerge{
+    from{ transform:translateY(-18px) rotate(-.6deg); opacity:0; }
+    to{ transform:translateY(0) rotate(0); opacity:1; }
+  }
+  .slip::after{
+    content:"";
+    position:absolute;
+    left:0; right:0; bottom:-6px;
+    height:10px;
+    background:
+      radial-gradient(circle at 6px 0, transparent 5px, var(--paper) 5.5px) repeat-x;
+    background-size:12px 10px;
+  }
+  .slip-top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:8px;
+    font-size:11px;
+    letter-spacing:.06em;
+  }
+  .tag{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    padding:2px 7px;
+    border-radius:3px;
+    color:var(--paper);
+    font-size:10px;
+    letter-spacing:.1em;
+  }
+  .tag.text{ background:var(--accent-fresh); }
+  .tag.link{ background:var(--accent-link); }
+  .tag.image{ background:#5a4a8a; }
+  .timer{ font-variant-numeric:tabular-nums; color:var(--ink-dim); }
+  .timer.warn{ color:var(--accent-warn); }
+  .timer.danger{ color:var(--accent-danger); font-weight:700; }
+
+  .content{
+    font-size:14px;
+    line-height:1.5;
+    word-break:break-word;
+    white-space:pre-wrap;
+  }
+  .content a{ color:var(--accent-link); text-decoration:underline; }
+  .content img{ max-width:100%; border-radius:2px; display:block; margin-top:4px; }
+
+  .slip-actions{
+    display:flex;
+    gap:10px;
+    margin-top:10px;
+    padding-top:8px;
+    border-top:1px dashed #c9c2ae;
+  }
+  .slip-actions button{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:.04em;
+    background:none;
+    border:none;
+    color:var(--ink-dim);
+    cursor:pointer;
+    padding:2px 0;
+  }
+  .slip-actions button:hover{ color:var(--ink); }
+  .slip-actions button.danger:hover{ color:var(--accent-danger); }
+
+  footer{
+    border-top:1px solid var(--hairline);
+    background:var(--bg-raised);
+    padding:12px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+  .composer{
+    max-width:420px;
+    margin:0 auto;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  #pasteInput{
+    width:100%;
+    resize:none;
+    min-height:44px;
+    max-height:120px;
+    background:var(--bg);
+    color:var(--paper);
+    border:1px solid var(--hairline);
+    border-radius:6px;
+    padding:10px 12px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:14px;
+    line-height:1.4;
+  }
+  #pasteInput:focus{ outline:none; border-color:var(--accent-fresh); }
+  .composer-row{ display:flex; gap:8px; align-items:center; }
+  .composer-row .hint{ flex:1; font-size:10.5px; color:var(--ink-dim); letter-spacing:.02em; }
+  .icon-btn{
+    background:var(--bg);
+    border:1px solid var(--hairline);
+    color:var(--paper);
+    border-radius:6px;
+    width:38px; height:38px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    font-size:16px;
+  }
+  .icon-btn:active{ transform:scale(.94); }
+  #sendBtn{
+    background:var(--accent-fresh);
+    border:none;
+    color:var(--paper);
+    border-radius:6px;
+    padding:0 16px;
+    height:38px;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:13px;
+    letter-spacing:.04em;
+    cursor:pointer;
+  }
+  #sendBtn:disabled{ opacity:.35; cursor:default; }
+  #fileInput{ display:none; }
+  #status{
+    text-align:center;
+    font-size:10.5px;
+    color:var(--ink-dim);
+    padding-top:4px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .slip{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">cross-device · self-erasing</div>
+  <h1>FADE</h1>
+  <div class="slot"></div>
+</header>
+
+<main id="feed">
+  <div id="empty">Nothing here yet.<br>Paste or type below — it'll sync to every device and fade out after 10 minutes.</div>
+</main>
+
+<footer>
+  <div class="composer">
+    <textarea id="pasteInput" placeholder="Paste or type text / a link… (Ctrl/Cmd+V works for images too)" rows="1"></textarea>
+    <div class="composer-row">
+      <button class="icon-btn" id="fileBtn" title="Add image">🖼</button>
+      <input type="file" id="fileInput" accept="image/*">
+      <span class="hint" id="status">connecting…</span>
+      <button id="sendBtn" disabled>Add</button>
+    </div>
+  </div>
+</footer>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script>
+/* ------------------------------------------------------------------
+   1) FILL THIS IN with your own Firebase project config.
+      Firebase console → Project settings → General → Your apps → Web app.
+      Make sure you enabled "Realtime Database" (not Firestore).
+   ------------------------------------------------------------------ */
+const firebaseConfig = {
+  apiKey: "AIzaSyD_HK_i7xcSMuGNBTFeEljgPgCJUaqPWhw",
+  authDomain: "fade-self-erasing-clipboard.firebaseapp.com",
+  databaseURL: "https://fade-self-erasing-clipboard-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "fade-self-erasing-clipboard",
+  storageBucket: "fade-self-erasing-clipboard.firebasestorage.app",
+  messagingSenderId: "511038937505",
+  appId: "1:511038937505:web:4eaf327b0857f023e9d3e0",
+  measurementId: "G-71KLZNSNK8"
+};
+
+const TTL_MS = 10 * 60 * 1000; // 10 minutes
+const MAX_IMAGE_DIM = 1280;
+const IMAGE_QUALITY = 0.7;
+
+let db, clipsRef;
+const feed = document.getElementById('feed');
+const empty = document.getElementById('empty');
+const pasteInput = document.getElementById('pasteInput');
+const sendBtn = document.getElementById('sendBtn');
+const fileBtn = document.getElementById('fileBtn');
+const fileInput = document.getElementById('fileInput');
+const statusEl = document.getElementById('status');
+
+const cardEls = new Map(); // key -> {el, timerEl, createdAt}
+
+function init(){
+  try{
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    clipsRef = db.ref('clips');
+    statusEl.textContent = 'synced';
+    listen();
+  }catch(err){
+    statusEl.textContent = 'setup needed — see comments in the HTML file';
+    console.error(err);
+  }
+}
+
+function listen(){
+  clipsRef.on('value', snap => {
+    const data = snap.val() || {};
+    const keys = Object.keys(data);
+
+    // remove cards that no longer exist
+    for(const key of [...cardEls.keys()]){
+      if(!data[key]){ removeCardEl(key); }
+    }
+
+    // sort newest first
+    keys.sort((a,b) => (data[b].createdAt||0) - (data[a].createdAt||0));
+
+    keys.forEach(key => {
+      const item = data[key];
+      const remaining = TTL_MS - (Date.now() - (item.createdAt||Date.now()));
+      if(remaining <= 0){
+        clipsRef.child(key).remove();
+        return;
+      }
+      if(!cardEls.has(key)){
+        addCardEl(key, item, remaining < TTL_MS - 500);
+      }
+    });
+
+    empty.style.display = keys.length ? 'none' : 'block';
+  });
+
+  setInterval(tick, 1000);
+}
+
+function addCardEl(key, item, skipAnim){
+  const slip = document.createElement('div');
+  slip.className = 'slip';
+  if(skipAnim) slip.style.animation = 'none';
+
+  const top = document.createElement('div');
+  top.className = 'slip-top';
+
+  const tag = document.createElement('span');
+  tag.className = 'tag ' + item.type;
+  tag.textContent = item.type.toUpperCase();
+
+  const timer = document.createElement('span');
+  timer.className = 'timer';
+
+  top.append(tag, timer);
+
+  const content = document.createElement('div');
+  content.className = 'content';
+  renderContent(content, item);
+
+  const actions = document.createElement('div');
+  actions.className = 'slip-actions';
+
+  const copyBtn = document.createElement('button');
+  copyBtn.textContent = 'copy';
+  copyBtn.onclick = () => copyItem(item);
+
+  const delBtn = document.createElement('button');
+  delBtn.textContent = 'delete now';
+  delBtn.className = 'danger';
+  delBtn.onclick = () => clipsRef.child(key).remove();
+
+  actions.append(copyBtn, delBtn);
+  slip.append(top, content, actions);
+
+  // newest first
+  feed.insertBefore(slip, feed.firstChild);
+
+  cardEls.set(key, { el: slip, timerEl: timer, createdAt: item.createdAt || Date.now() });
+}
+
+function removeCardEl(key){
+  const rec = cardEls.get(key);
+  if(rec){ rec.el.remove(); cardEls.delete(key); }
+}
+
+function renderContent(el, item){
+  if(item.type === 'image'){
+    const img = document.createElement('img');
+    img.src = item.content;
+    el.appendChild(img);
+  } else if(item.type === 'link'){
+    const a = document.createElement('a');
+    a.href = item.content;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = item.content;
+    el.appendChild(a);
+  } else {
+    el.textContent = item.content;
+  }
+}
+
+function tick(){
+  const now = Date.now();
+  for(const [key, rec] of cardEls){
+    const remaining = TTL_MS - (now - rec.createdAt);
+    if(remaining <= 0){
+      clipsRef.child(key).remove();
+      continue;
+    }
+    const frac = remaining / TTL_MS;
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    rec.timerEl.textContent = `${mins}:${secs.toString().padStart(2,'0')}`;
+    rec.timerEl.className = 'timer' + (frac < 0.05 ? ' danger' : frac < 0.2 ? ' warn' : '');
+
+    // fade like thermal paper losing ink as time runs out
+    const opacity = 0.35 + 0.65 * frac;
+    const blur = (1 - frac) * 1.1;
+    rec.el.style.opacity = opacity.toFixed(2);
+    rec.el.style.filter = `blur(${blur.toFixed(2)}px)`;
+  }
+}
+
+function copyItem(item){
+  if(item.type === 'image'){
+    fetch(item.content).then(r => r.blob()).then(blob => {
+      navigator.clipboard.write([new ClipboardItem({[blob.type]: blob})]).catch(()=>{});
+    });
+  } else {
+    navigator.clipboard.writeText(item.content).catch(()=>{});
+  }
+}
+
+function looksLikeUrl(text){
+  return /^(https?:\/\/|www\.)\S+$/i.test(text.trim());
+}
+
+function addItem(type, content){
+  if(!clipsRef) return;
+  clipsRef.push({
+    type, content,
+    createdAt: firebase.database.ServerValue.TIMESTAMP
+  });
+}
+
+/* ---- text / link input ---- */
+function updateSendState(){
+  sendBtn.disabled = pasteInput.value.trim().length === 0;
+}
+pasteInput.addEventListener('input', () => {
+  updateSendState();
+  pasteInput.style.height = 'auto';
+  pasteInput.style.height = Math.min(pasteInput.scrollHeight, 120) + 'px';
+});
+pasteInput.addEventListener('keydown', e => {
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    submitText();
+  }
+});
+sendBtn.addEventListener('click', submitText);
+
+function submitText(){
+  const val = pasteInput.value.trim();
+  if(!val) return;
+  addItem(looksLikeUrl(val) ? 'link' : 'text', val);
+  pasteInput.value = '';
+  pasteInput.style.height = 'auto';
+  updateSendState();
+}
+
+/* ---- image paste (desktop, and mobile browsers that support it) ---- */
+pasteInput.addEventListener('paste', handlePaste);
+document.addEventListener('paste', handlePaste);
+
+function handlePaste(e){
+  const items = (e.clipboardData || window.clipboardData)?.items;
+  if(!items) return;
+  for(const it of items){
+    if(it.type && it.type.startsWith('image/')){
+      const file = it.getAsFile();
+      if(file) processImageFile(file);
+      e.preventDefault();
+      return;
+    }
+  }
+}
+
+/* ---- image upload button (mobile fallback: camera / gallery) ---- */
+fileBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if(file) processImageFile(file);
+  fileInput.value = '';
+});
+
+function processImageFile(file){
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(width, height));
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', IMAGE_QUALITY);
+      addItem('image', dataUrl);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+init();
+</script>
+</body>
+</html>
