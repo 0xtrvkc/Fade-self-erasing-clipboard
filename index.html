@@ -1,9 +1,26 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Fade — self-erasing clipboard</title>
+
+<!-- iOS home screen icon. -->
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<!-- Android / general icon -->
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+
+<!-- PWA manifest -->
+<link rel="manifest" href="manifest.json">
+
+<!-- Makes the status bar match your dark theme when added to home screen -->
+<meta name="theme-color" content="#0a0a0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" type="image/png" href="data:image/png;base64,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">
+  
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
 <style>
