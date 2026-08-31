@@ -1,4 +1,4 @@
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -109,12 +109,16 @@
     background:var(--paper);
     color:var(--ink);
     border-radius:2px;
+    border-left:4px solid transparent;
     padding:14px 16px 16px;
     position:relative;
     box-shadow:0 10px 24px rgba(0,0,0,.28);
     animation:emerge .38s cubic-bezier(.2,.8,.2,1);
     transition:opacity .4s linear, filter .4s linear;
   }
+  .slip.text{ border-left-color:var(--accent-fresh); }
+  .slip.link{ border-left-color:var(--accent-link); }
+  .slip.image{ border-left-color:#5a4a8a; }
   @keyframes emerge{
     from{ transform:translateY(-18px) rotate(-.6deg); opacity:0; }
     to{ transform:translateY(0) rotate(0); opacity:1; }
@@ -131,11 +135,12 @@
   .slip-top{
     display:flex;
     align-items:center;
-    justify-content:space-between;
+    gap:10px;
     margin-bottom:8px;
     font-size:11px;
     letter-spacing:.06em;
   }
+  .slip-top .timer{ margin-right:auto; }
   .tag{
     font-family:'Space Grotesk', sans-serif;
     font-weight:700;
@@ -157,26 +162,49 @@
     line-height:1.5;
     word-break:break-word;
     white-space:pre-wrap;
+    max-height:110px;
+    overflow:hidden;
+    position:relative;
+  }
+  .content.expanded{ max-height:none; }
+  .content.clamped::after{
+    content:"";
+    position:absolute;
+    left:0; right:0; bottom:0;
+    height:32px;
+    background:linear-gradient(to bottom, transparent, var(--paper));
   }
   .content a{ color:var(--accent-link); text-decoration:underline; }
   .content img{ max-width:100%; border-radius:2px; display:block; margin-top:4px; }
 
+  .expand-btn{
+    display:block;
+    margin-top:4px;
+    background:none;
+    border:none;
+    color:var(--accent-link);
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:.04em;
+    cursor:pointer;
+    padding:0;
+  }
+
   .slip-actions{
     display:flex;
-    gap:10px;
-    margin-top:10px;
-    padding-top:8px;
-    border-top:1px dashed #c9c2ae;
+    gap:8px;
+    flex-shrink:0;
   }
   .slip-actions button{
     font-family:'JetBrains Mono', monospace;
     font-size:11px;
     letter-spacing:.04em;
     background:none;
-    border:none;
+    border:1px solid #c9c2ae;
+    border-radius:3px;
     color:var(--ink-dim);
     cursor:pointer;
-    padding:2px 0;
+    padding:3px 7px;
   }
   .slip-actions button:hover{ color:var(--ink); }
   .slip-actions button.danger:hover{ color:var(--accent-danger); }
@@ -352,7 +380,7 @@ function listen(){
 
 function addCardEl(key, item, skipAnim){
   const slip = document.createElement('div');
-  slip.className = 'slip';
+  slip.className = 'slip ' + item.type;
   if(skipAnim) slip.style.animation = 'none';
 
   const top = document.createElement('div');
@@ -365,12 +393,6 @@ function addCardEl(key, item, skipAnim){
   const timer = document.createElement('span');
   timer.className = 'timer';
 
-  top.append(tag, timer);
-
-  const content = document.createElement('div');
-  content.className = 'content';
-  renderContent(content, item);
-
   const actions = document.createElement('div');
   actions.className = 'slip-actions';
 
@@ -379,15 +401,47 @@ function addCardEl(key, item, skipAnim){
   copyBtn.onclick = () => copyItem(item);
 
   const delBtn = document.createElement('button');
-  delBtn.textContent = 'delete now';
+  delBtn.textContent = '✕';
+  delBtn.title = 'delete now';
   delBtn.className = 'danger';
   delBtn.onclick = () => clipsRef.child(key).remove();
 
   actions.append(copyBtn, delBtn);
-  slip.append(top, content, actions);
+  top.append(tag, timer, actions);
+
+  const content = document.createElement('div');
+  content.className = 'content';
+  renderContent(content, item);
+
+  slip.append(top, content);
 
   // newest first
   feed.insertBefore(slip, feed.firstChild);
+
+  // collapse long content by default so the feed stays scannable;
+  // add a toggle only if it actually overflows the clamp height
+  const applyClampCheck = () => {
+    if(content.scrollHeight > content.clientHeight + 4 && !content.nextElementSibling?.classList.contains('expand-btn')){
+      content.classList.add('clamped');
+      const expandBtn = document.createElement('button');
+      expandBtn.className = 'expand-btn';
+      expandBtn.textContent = 'show more';
+      expandBtn.onclick = () => {
+        const isExpanded = content.classList.toggle('expanded');
+        content.classList.toggle('clamped', !isExpanded);
+        expandBtn.textContent = isExpanded ? 'show less' : 'show more';
+      };
+      content.after(expandBtn);
+    }
+  };
+
+  if(item.type === 'image'){
+    const img = content.querySelector('img');
+    if(img && !img.complete) img.addEventListener('load', applyClampCheck, { once:true });
+    else applyClampCheck();
+  } else {
+    applyClampCheck();
+  }
 
   cardEls.set(key, { el: slip, timerEl: timer, createdAt: item.createdAt || Date.now() });
 }
@@ -485,7 +539,6 @@ function submitText(){
 }
 
 /* ---- image paste (desktop, and mobile browsers that support it) ---- */
-pasteInput.addEventListener('paste', handlePaste);
 document.addEventListener('paste', handlePaste);
 
 function handlePaste(e){
