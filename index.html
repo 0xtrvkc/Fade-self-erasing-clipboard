@@ -664,7 +664,7 @@ function addCardEl(key, item, skipAnim){
   const keepBtn = document.createElement('button');
   keepBtn.textContent = 'keep';
   keepBtn.title = 'keep forever in the vault';
-  keepBtn.onclick = () => keepItem(key, item);
+  keepBtn.onclick = () => keepItem(key, item, keepBtn);
 
   const delBtn = document.createElement('button');
   delBtn.textContent = '✕';
@@ -792,15 +792,28 @@ function addItem(type, content){
 }
 
 /* ---- keep forever (moves an item out of the fading feed into the vault) ---- */
-function keepItem(key, item){
+function keepItem(key, item, btn){
   if(!keptRef || !clipsRef) return;
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = 'keeping…';
+  }
   keptRef.child(key).set({
     type: item.type,
     content: item.content,
     keptAt: firebase.database.ServerValue.TIMESTAMP
   }).then(() => {
-    clipsRef.child(key).remove();
-  }).catch(()=>{});
+    if(btn){ btn.textContent = 'kept ✓'; btn.classList.add('copied'); }
+    // small delay so the "kept ✓" state is actually visible before the card disappears
+    setTimeout(() => clipsRef.child(key).remove(), 500);
+  }).catch(err => {
+    console.error('keepItem failed:', err);
+    if(btn){
+      btn.disabled = false;
+      btn.textContent = 'keep';
+    }
+    statusEl.textContent = 'could not keep — check Firebase rules for /kept';
+  });
 }
 
 /* ---- vault (hidden permanent page) ---- */
