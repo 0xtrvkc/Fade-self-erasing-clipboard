@@ -280,15 +280,243 @@
   @media (prefers-reduced-motion: reduce){
     .slip{ animation:none; }
   }
+
+  /* ============================================================
+     HIDDEN VAULT — cyberpunk unlock popup + full-screen archive
+     ============================================================ */
+  :root{
+    --cp-cyan:#00fff2;
+    --cp-magenta:#ff2079;
+    --cp-yellow:#f4ff2e;
+    --cp-bg:#050608;
+    --cp-panel:#0c0f14;
+  }
+
+  /* --- unlock toast --- */
+  #unlockPopup{
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:9998;
+    pointer-events:none;
+    opacity:0;
+  }
+  #unlockPopup.show{ animation:popupLife 1.05s steps(1,end) forwards; }
+  .unlock-card{
+    position:relative;
+    background:var(--cp-panel);
+    border:1px solid var(--cp-cyan);
+    padding:18px 26px;
+    font-family:'Space Grotesk', sans-serif;
+    text-align:center;
+    box-shadow:0 0 2px var(--cp-cyan), 0 0 22px rgba(0,255,242,.35), 0 0 60px rgba(255,32,121,.15);
+    transform:scale(.85);
+    clip-path:polygon(0 8px, 8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+    overflow:hidden;
+  }
+  #unlockPopup.show .unlock-card{ animation:popupIn .5s cubic-bezier(.2,1.4,.4,1) forwards; }
+  .unlock-card .line1{
+    font-size:11px; letter-spacing:.3em; color:var(--cp-magenta); text-transform:uppercase;
+  }
+  .unlock-card .line2{
+    font-size:22px; font-weight:700; letter-spacing:.12em; color:var(--cp-cyan);
+    text-shadow:2px 0 var(--cp-magenta), -2px 0 var(--cp-yellow);
+    animation:glitchText 2.4s infinite steps(1,end);
+  }
+  .unlock-card .laser{
+    position:absolute; left:-10%; top:50%; width:120%; height:2px;
+    background:linear-gradient(90deg, transparent, var(--cp-cyan), var(--cp-yellow), var(--cp-cyan), transparent);
+    box-shadow:0 0 8px var(--cp-cyan);
+    transform:translateY(-50%) scaleX(0);
+    opacity:0;
+  }
+  #unlockPopup.show .laser{ animation:laserSweep .5s ease-out .12s forwards; }
+  @keyframes popupLife{
+    0%{ opacity:0; }
+    3%{ opacity:1; }
+    85%{ opacity:1; }
+    100%{ opacity:0; }
+  }
+  @keyframes popupIn{
+    0%{ transform:scale(.7) skewX(6deg); filter:blur(3px); }
+    40%{ transform:scale(1.04) skewX(-2deg); filter:blur(0); }
+    60%{ transform:scale(.98) skewX(1deg); }
+    100%{ transform:scale(1) skewX(0); }
+  }
+  @keyframes laserSweep{
+    0%{ transform:translateY(-50%) scaleX(0); opacity:1; }
+    60%{ transform:translateY(-50%) scaleX(1); opacity:1; }
+    100%{ transform:translateY(-50%) scaleX(1); opacity:0; }
+  }
+  @keyframes glitchText{
+    0%, 92%, 100%{ text-shadow:2px 0 var(--cp-magenta), -2px 0 var(--cp-yellow); transform:translate(0,0); }
+    93%{ text-shadow:-3px 0 var(--cp-magenta), 3px 0 var(--cp-yellow); transform:translate(-2px,1px); }
+    95%{ text-shadow:3px 0 var(--cp-magenta), -3px 0 var(--cp-yellow); transform:translate(2px,-1px); }
+    97%{ text-shadow:-1px 0 var(--cp-magenta), 1px 0 var(--cp-yellow); transform:translate(1px,0); }
+  }
+
+  /* --- warp transition overlay --- */
+  #warpOverlay{
+    position:fixed; inset:0; z-index:9999;
+    background:var(--cp-bg);
+    pointer-events:none;
+    opacity:0;
+    display:none;
+  }
+  #warpOverlay.active{ display:block; animation:warpFlash .6s ease-in-out forwards; }
+  #warpOverlay::before{
+    content:""; position:absolute; inset:0;
+    background:repeating-linear-gradient(0deg, rgba(0,255,242,.08) 0 1px, transparent 1px 3px);
+    mix-blend-mode:screen;
+  }
+  @keyframes warpFlash{
+    0%{ opacity:0; transform:scale(1) rotate(0); filter:blur(0); }
+    20%{ opacity:1; transform:scale(1.3) rotate(1deg); filter:blur(2px) saturate(3); }
+    45%{ opacity:1; transform:scale(.9) rotate(-1deg); filter:blur(6px) saturate(4) hue-rotate(30deg); }
+    70%{ opacity:1; transform:scale(1.15) rotate(.5deg); filter:blur(1px) saturate(2); }
+    100%{ opacity:0; transform:scale(1) rotate(0); filter:blur(0); }
+  }
+
+  /* --- vault page --- */
+  #vault{
+    display:none;
+    position:fixed; inset:0; z-index:500;
+    background:var(--cp-bg);
+    color:var(--cp-cyan);
+    font-family:'JetBrains Mono', monospace;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  #vault.open{ display:flex; }
+  #vault::before{
+    content:"";
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(rgba(0,255,242,.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,242,.06) 1px, transparent 1px);
+    background-size:34px 34px;
+    -webkit-mask-image:radial-gradient(ellipse 90% 70% at 50% 30%, #000 40%, transparent 90%);
+            mask-image:radial-gradient(ellipse 90% 70% at 50% 30%, #000 40%, transparent 90%);
+    pointer-events:none;
+  }
+  #vault::after{
+    content:"";
+    position:absolute; inset:0;
+    background:repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 3px);
+    pointer-events:none;
+    animation:scanDrift 6s linear infinite;
+  }
+  @keyframes scanDrift{ from{ background-position-y:0; } to{ background-position-y:120px; } }
+
+  .vault-header{
+    position:relative; z-index:1;
+    padding:22px 18px 14px;
+    text-align:center;
+    border-bottom:1px solid rgba(0,255,242,.25);
+  }
+  .vault-header .v-eyebrow{
+    font-size:10.5px; letter-spacing:.35em; color:var(--cp-magenta); text-transform:uppercase;
+  }
+  .vault-header h2{
+    font-family:'Space Grotesk', sans-serif;
+    font-size:24px; font-weight:700; letter-spacing:.1em; margin:6px 0 0;
+    color:var(--cp-cyan);
+    text-shadow:2px 0 var(--cp-magenta), -2px 0 var(--cp-yellow);
+    animation:glitchText 3.2s infinite steps(1,end);
+  }
+  #vaultExit{
+    position:absolute; top:18px; right:16px;
+    background:none; border:1px solid var(--cp-magenta); color:var(--cp-magenta);
+    font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:.06em;
+    padding:5px 10px; border-radius:2px; cursor:pointer;
+  }
+  #vaultExit:hover{ background:var(--cp-magenta); color:var(--cp-bg); }
+
+  #vaultFeed{
+    position:relative; z-index:1;
+    flex:1; overflow-y:auto;
+    padding:18px 14px 30px;
+    display:flex; flex-direction:column; align-items:center; gap:14px;
+  }
+  #vaultEmpty{
+    color:rgba(0,255,242,.5);
+    font-size:12.5px; text-align:center; margin-top:50px; max-width:280px; line-height:1.7;
+    letter-spacing:.03em;
+  }
+  .vslip{
+    width:100%; max-width:420px;
+    background:var(--cp-panel);
+    border:1px solid rgba(0,255,242,.3);
+    border-left:3px solid var(--cp-magenta);
+    padding:12px 14px 14px;
+    clip-path:polygon(0 6px, 6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%);
+    box-shadow:0 0 0 1px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.5);
+    animation:vslipIn .4s ease-out;
+  }
+  @keyframes vslipIn{
+    from{ opacity:0; transform:translateY(-10px) scale(.97); filter:blur(2px); }
+    to{ opacity:1; transform:translateY(0) scale(1); filter:blur(0); }
+  }
+  .vslip-top{
+    display:flex; align-items:center; gap:10px; margin-bottom:8px;
+    font-size:10.5px; letter-spacing:.06em;
+  }
+  .vslip-top .vtag{
+    font-family:'Space Grotesk', sans-serif; font-weight:700;
+    padding:2px 7px; border-radius:2px; font-size:9.5px; letter-spacing:.1em;
+    background:rgba(0,255,242,.12); color:var(--cp-cyan); border:1px solid rgba(0,255,242,.4);
+  }
+  .vslip-top .vdate{ margin-right:auto; color:rgba(0,255,242,.45); }
+  .vslip-actions{ display:flex; gap:8px; }
+  .vslip-actions button{
+    font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:.04em;
+    background:none; border:1px solid rgba(0,255,242,.4); color:var(--cp-cyan);
+    border-radius:2px; cursor:pointer; padding:3px 7px;
+  }
+  .vslip-actions button:hover{ background:rgba(0,255,242,.15); }
+  .vslip-actions button.danger{ border-color:var(--cp-magenta); color:var(--cp-magenta); }
+  .vslip-actions button.danger:hover{ background:rgba(255,32,121,.15); }
+  .vslip-actions button.copied{ background:var(--cp-cyan); color:var(--cp-bg); }
+  .vcontent{
+    font-size:13.5px; line-height:1.5; word-break:break-word; white-space:pre-wrap;
+    color:#d8fdfb;
+  }
+  .vcontent a{ color:var(--cp-yellow); text-decoration:underline; }
+  .vcontent img{ max-width:100%; border-radius:2px; display:block; margin-top:4px; }
 </style>
+
 </head>
 <body>
 
 <header>
   <div class="eyebrow">cross-device · self-erasing</div>
-  <h1>FADE</h1>
+  <h1 id="appTitle">FADE</h1>
   <div class="slot"></div>
 </header>
+
+<!-- secret unlock toast -->
+<div id="unlockPopup">
+  <div class="unlock-card">
+    <div class="line1">access·granted</div>
+    <div class="line2">VAULT UNLOCKED</div>
+    <div class="laser"></div>
+  </div>
+</div>
+<div id="warpOverlay"></div>
+
+<!-- hidden vault page -->
+<div id="vault">
+  <div class="vault-header">
+    <div class="v-eyebrow">restricted · permanent storage</div>
+    <h2>THE VAULT</h2>
+    <button id="vaultExit">exit ✕</button>
+  </div>
+  <div id="vaultFeed">
+    <div id="vaultEmpty">Nothing kept yet.<br>Items you "keep" from the main feed end up here — permanently, until you delete them.</div>
+  </div>
+</div>
 
 <main id="feed">
   <div id="empty">Nothing here yet.<br>Paste or type below — it'll sync to every device and fade out after 10 minutes.</div>
@@ -348,9 +576,12 @@ function nextAccentColor(){
   return color;
 }
 
-let db, clipsRef;
+let db, clipsRef, keptRef;
 const feed = document.getElementById('feed');
 const empty = document.getElementById('empty');
+const vaultFeed = document.getElementById('vaultFeed');
+const vaultEmpty = document.getElementById('vaultEmpty');
+const vaultKeyEls = new Map(); // key -> el, for the vault list
 const pasteInput = document.getElementById('pasteInput');
 const sendBtn = document.getElementById('sendBtn');
 const fileBtn = document.getElementById('fileBtn');
@@ -364,8 +595,10 @@ function init(){
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
     clipsRef = db.ref('clips');
+    keptRef = db.ref('kept');
     statusEl.textContent = 'synced';
     listen();
+    listenVault();
   }catch(err){
     statusEl.textContent = 'setup needed — see comments in the HTML file';
     console.error(err);
@@ -428,13 +661,18 @@ function addCardEl(key, item, skipAnim){
   copyBtn.textContent = 'copy';
   copyBtn.onclick = () => copyItem(item, copyBtn);
 
+  const keepBtn = document.createElement('button');
+  keepBtn.textContent = 'keep';
+  keepBtn.title = 'keep forever in the vault';
+  keepBtn.onclick = () => keepItem(key, item);
+
   const delBtn = document.createElement('button');
   delBtn.textContent = '✕';
   delBtn.title = 'delete now';
   delBtn.className = 'danger';
   delBtn.onclick = () => clipsRef.child(key).remove();
 
-  actions.append(copyBtn, delBtn);
+  actions.append(copyBtn, keepBtn, delBtn);
   top.append(tag, timer, actions);
 
   const content = document.createElement('div');
@@ -552,6 +790,125 @@ function addItem(type, content){
     createdAt: firebase.database.ServerValue.TIMESTAMP
   });
 }
+
+/* ---- keep forever (moves an item out of the fading feed into the vault) ---- */
+function keepItem(key, item){
+  if(!keptRef || !clipsRef) return;
+  keptRef.child(key).set({
+    type: item.type,
+    content: item.content,
+    keptAt: firebase.database.ServerValue.TIMESTAMP
+  }).then(() => {
+    clipsRef.child(key).remove();
+  }).catch(()=>{});
+}
+
+/* ---- vault (hidden permanent page) ---- */
+function listenVault(){
+  keptRef.on('value', snap => {
+    const data = snap.val() || {};
+    const keys = Object.keys(data);
+    keys.sort((a,b) => (data[b].keptAt||0) - (data[a].keptAt||0));
+
+    for(const key of [...vaultKeyEls.keys()]){
+      if(!data[key]){ const el = vaultKeyEls.get(key); el?.remove(); vaultKeyEls.delete(key); }
+    }
+    keys.forEach(key => {
+      if(!vaultKeyEls.has(key)) addVaultCardEl(key, data[key]);
+    });
+
+    vaultEmpty.style.display = keys.length ? 'none' : 'block';
+  });
+}
+
+function addVaultCardEl(key, item){
+  const vslip = document.createElement('div');
+  vslip.className = 'vslip';
+
+  const top = document.createElement('div');
+  top.className = 'vslip-top';
+
+  const tag = document.createElement('span');
+  tag.className = 'vtag';
+  tag.textContent = item.type.toUpperCase();
+
+  const date = document.createElement('span');
+  date.className = 'vdate';
+  date.textContent = item.keptAt ? new Date(item.keptAt).toLocaleString() : '';
+
+  const actions = document.createElement('div');
+  actions.className = 'vslip-actions';
+
+  const copyBtn = document.createElement('button');
+  copyBtn.textContent = 'copy';
+  copyBtn.onclick = () => copyItem(item, copyBtn);
+
+  const delBtn = document.createElement('button');
+  delBtn.textContent = '✕';
+  delBtn.title = 'delete forever';
+  delBtn.className = 'danger';
+  delBtn.onclick = () => keptRef.child(key).remove();
+
+  actions.append(copyBtn, delBtn);
+  top.append(tag, date, actions);
+
+  const content = document.createElement('div');
+  content.className = 'vcontent';
+  renderContent(content, item);
+
+  vslip.append(top, content);
+  vaultFeed.appendChild(vslip);
+  vaultKeyEls.set(key, vslip);
+}
+
+/* ---- secret unlock: type "iii" on keyboard, or tap the title 4x on mobile ---- */
+let keyBuffer = '';
+document.addEventListener('keydown', e => {
+  const tag = (e.target && e.target.tagName) || '';
+  if(tag === 'TEXTAREA' || tag === 'INPUT') return;
+  keyBuffer = (keyBuffer + e.key.toLowerCase()).slice(-3);
+  if(keyBuffer === 'iii'){
+    keyBuffer = '';
+    unlockVault();
+  }
+});
+
+let tapCount = 0, tapTimer = null;
+document.getElementById('appTitle').addEventListener('click', () => {
+  tapCount++;
+  clearTimeout(tapTimer);
+  tapTimer = setTimeout(() => { tapCount = 0; }, 900);
+  if(tapCount >= 4){
+    tapCount = 0;
+    unlockVault();
+  }
+});
+
+function unlockVault(){
+  const popup = document.getElementById('unlockPopup');
+  popup.classList.remove('show'); void popup.offsetWidth; // restart animation if triggered again quickly
+  popup.classList.add('show');
+
+  setTimeout(() => {
+    const warp = document.getElementById('warpOverlay');
+    warp.classList.remove('active'); void warp.offsetWidth;
+    warp.classList.add('active');
+    setTimeout(() => {
+      document.getElementById('vault').classList.add('open');
+    }, 220);
+    setTimeout(() => warp.classList.remove('active'), 650);
+  }, 900);
+}
+
+document.getElementById('vaultExit').addEventListener('click', () => {
+  const warp = document.getElementById('warpOverlay');
+  warp.classList.remove('active'); void warp.offsetWidth;
+  warp.classList.add('active');
+  setTimeout(() => {
+    document.getElementById('vault').classList.remove('open');
+  }, 220);
+  setTimeout(() => warp.classList.remove('active'), 650);
+});
 
 /* ---- text / link input ---- */
 function updateSendState(){
