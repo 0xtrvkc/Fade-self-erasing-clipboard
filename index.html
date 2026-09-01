@@ -874,7 +874,7 @@ function addVaultCardEl(key, item){
   vaultKeyEls.set(key, vslip);
 }
 
-/* ---- secret unlock: type "iii" on keyboard, or tap the title 4x on mobile ---- */
+/* ---- secret unlock: type "iii" anywhere on keyboard (desktop), or type it into the paste box (mobile) ---- */
 let keyBuffer = '';
 document.addEventListener('keydown', e => {
   const tag = (e.target && e.target.tagName) || '';
@@ -882,17 +882,6 @@ document.addEventListener('keydown', e => {
   keyBuffer = (keyBuffer + e.key.toLowerCase()).slice(-3);
   if(keyBuffer === 'iii'){
     keyBuffer = '';
-    unlockVault();
-  }
-});
-
-let tapCount = 0, tapTimer = null;
-document.getElementById('appTitle').addEventListener('click', () => {
-  tapCount++;
-  clearTimeout(tapTimer);
-  tapTimer = setTimeout(() => { tapCount = 0; }, 900);
-  if(tapCount >= 4){
-    tapCount = 0;
     unlockVault();
   }
 });
@@ -928,6 +917,13 @@ function updateSendState(){
   sendBtn.disabled = pasteInput.value.trim().length === 0;
 }
 pasteInput.addEventListener('input', () => {
+  if(pasteInput.value.trim().toLowerCase() === 'iii'){
+    pasteInput.value = '';
+    pasteInput.style.height = 'auto';
+    updateSendState();
+    unlockVault();
+    return;
+  }
   updateSendState();
   pasteInput.style.height = 'auto';
   pasteInput.style.height = Math.min(pasteInput.scrollHeight, 120) + 'px';
