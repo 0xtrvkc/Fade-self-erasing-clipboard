@@ -208,6 +208,12 @@
   }
   .slip-actions button:hover{ color:var(--ink); }
   .slip-actions button.danger:hover{ color:var(--accent-danger); }
+  .slip-actions button.copied{
+    color:var(--paper);
+    background:var(--accent-fresh);
+    border-color:var(--accent-fresh);
+    transition:background .15s ease, color .15s ease, border-color .15s ease;
+  }
 
   footer{
     border-top:1px solid var(--hairline);
@@ -323,6 +329,25 @@ const TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_IMAGE_DIM = 1280;
 const IMAGE_QUALITY = 0.7;
 
+// Rotating accent palette — each new slip gets the next color in line,
+// independent of its type, so consecutive pastes are easy to tell apart at a glance.
+const ACCENT_PALETTE = [
+  '#1f7a4d', // green
+  '#2f5fa8', // blue
+  '#b8511d', // burnt orange
+  '#5a4a8a', // violet
+  '#a32020', // red
+  '#0e7c86', // teal
+  '#9d3f7a', // magenta
+  '#8a6d1f', // olive/gold
+];
+let paletteIndex = 0;
+function nextAccentColor(){
+  const color = ACCENT_PALETTE[paletteIndex % ACCENT_PALETTE.length];
+  paletteIndex++;
+  return color;
+}
+
 let db, clipsRef;
 const feed = document.getElementById('feed');
 const empty = document.getElementById('empty');
@@ -382,6 +407,9 @@ function addCardEl(key, item, skipAnim){
   const slip = document.createElement('div');
   slip.className = 'slip ' + item.type;
   if(skipAnim) slip.style.animation = 'none';
+  // override the type-based border color with the next color in the rotation,
+  // so each new paste is visually distinct even from others of the same type
+  slip.style.borderLeftColor = nextAccentColor();
 
   const top = document.createElement('div');
   top.className = 'slip-top';
@@ -398,7 +426,7 @@ function addCardEl(key, item, skipAnim){
 
   const copyBtn = document.createElement('button');
   copyBtn.textContent = 'copy';
-  copyBtn.onclick = () => copyItem(item);
+  copyBtn.onclick = () => copyItem(item, copyBtn);
 
   const delBtn = document.createElement('button');
   delBtn.textContent = '✕';
@@ -490,14 +518,27 @@ function tick(){
   }
 }
 
-function copyItem(item){
+function copyItem(item, btn){
+  const onSuccess = () => btn && flashCopied(btn);
   if(item.type === 'image'){
     fetch(item.content).then(r => r.blob()).then(blob => {
-      navigator.clipboard.write([new ClipboardItem({[blob.type]: blob})]).catch(()=>{});
+      navigator.clipboard.write([new ClipboardItem({[blob.type]: blob})]).then(onSuccess).catch(()=>{});
     });
   } else {
-    navigator.clipboard.writeText(item.content).catch(()=>{});
+    navigator.clipboard.writeText(item.content).then(onSuccess).catch(()=>{});
   }
+}
+
+function flashCopied(btn){
+  clearTimeout(btn._copiedTimeout);
+  const original = btn.dataset.originalText || btn.textContent;
+  btn.dataset.originalText = original;
+  btn.textContent = 'copied ✓';
+  btn.classList.add('copied');
+  btn._copiedTimeout = setTimeout(() => {
+    btn.textContent = original;
+    btn.classList.remove('copied');
+  }, 1400);
 }
 
 function looksLikeUrl(text){
