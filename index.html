@@ -460,7 +460,7 @@
     to{ opacity:1; transform:translateY(0) scale(1); filter:blur(0); }
   }
   .vslip-top{
-    display:flex; align-items:center; gap:10px; margin-bottom:8px;
+    display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:8px;
     font-size:10.5px; letter-spacing:.06em;
   }
   .vslip-top .vtag{
@@ -479,6 +479,47 @@
   .vslip-actions button.danger{ border-color:var(--cp-magenta); color:var(--cp-magenta); }
   .vslip-actions button.danger:hover{ background:rgba(255,32,121,.15); }
   .vslip-actions button.copied{ background:var(--cp-cyan); color:var(--cp-bg); }
+  #vault [hidden]{ display:none !important; }
+  .vheader{ margin-bottom:12px; }
+  .vheader-button{
+    display:flex; align-items:flex-start; gap:12px;
+    width:100%; min-height:44px; padding:9px 10px;
+    text-align:left; background:rgba(0,255,242,.04);
+    border:1px solid rgba(0,255,242,.2); border-radius:3px;
+    color:var(--cp-yellow); cursor:pointer;
+  }
+  .vheader-button:hover{ background:rgba(0,255,242,.09); border-color:var(--cp-cyan); }
+  .vheader-button.is-empty{ border-style:dashed; color:rgba(0,255,242,.7); }
+  .vheader-text{
+    flex:1; min-width:0; margin:0; font-family:'Space Grotesk', sans-serif;
+    font-size:16px; font-weight:700; line-height:1.4; overflow-wrap:anywhere;
+  }
+  .is-empty .vheader-text{ font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:400; }
+  .vheader-edit{ flex-shrink:0; padding-top:3px; color:var(--cp-cyan); font:10.5px 'JetBrains Mono', monospace; }
+  .vheader-editor{
+    padding:12px; border:1px solid rgba(0,255,242,.4); border-radius:3px;
+    background:rgba(0,255,242,.04);
+  }
+  .vheader-editor label{ display:block; margin-bottom:8px; font-size:11px; color:var(--cp-cyan); }
+  .vheader-input{
+    display:block; width:100%; min-width:0; min-height:44px; padding:9px 10px;
+    background:var(--cp-bg); border:1px solid rgba(0,255,242,.4); border-radius:2px;
+    color:#d8fdfb; font:16px/1.4 'JetBrains Mono', monospace;
+  }
+  .vheader-input::placeholder{ color:#719491; }
+  .vheader-help{ margin:8px 0 10px; color:#8eb5b2; font-size:10.5px; line-height:1.6; }
+  .vheader-controls{ display:flex; flex-wrap:wrap; gap:8px; }
+  .vheader-controls button{
+    min-height:44px; padding:8px 16px; border:1px solid rgba(0,255,242,.4);
+    border-radius:2px; background:none; color:var(--cp-cyan);
+    font:12px 'JetBrains Mono', monospace; cursor:pointer;
+  }
+  .vheader-controls button[type="submit"]{ background:var(--cp-cyan); color:var(--cp-bg); font-weight:700; }
+  .vheader-controls button:disabled{ opacity:.5; cursor:wait; }
+  .vheader-status{ margin:10px 0 0; color:var(--cp-yellow); font-size:11px; line-height:1.5; }
+  .vheader-button:focus-visible, .vheader-input:focus, .vheader-controls button:focus-visible{
+    outline:2px solid var(--cp-cyan); outline-offset:3px;
+  }
   .vcontent{
     font-size:13.5px; line-height:1.5; word-break:break-word; white-space:pre-wrap;
     color:#d8fdfb;
@@ -556,6 +597,7 @@ const firebaseConfig = {
 const TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_IMAGE_DIM = 1280;
 const IMAGE_QUALITY = 0.7;
+const MAX_HEADER_LENGTH = 160;
 
 // Rotating accent palette — each new slip gets the next color in line,
 // independent of its type, so consecutive pastes are easy to tell apart at a glance.
@@ -581,7 +623,7 @@ const feed = document.getElementById('feed');
 const empty = document.getElementById('empty');
 const vaultFeed = document.getElementById('vaultFeed');
 const vaultEmpty = document.getElementById('vaultEmpty');
-const vaultKeyEls = new Map(); // key -> el, for the vault list
+const vaultKeyEls = new Map(); // key -> {el, update}, preserving open header drafts
 const pasteInput = document.getElementById('pasteInput');
 const sendBtn = document.getElementById('sendBtn');
 const fileBtn = document.getElementById('fileBtn');
@@ -824,14 +866,171 @@ function listenVault(){
     keys.sort((a,b) => (data[b].keptAt||0) - (data[a].keptAt||0));
 
     for(const key of [...vaultKeyEls.keys()]){
-      if(!data[key]){ const el = vaultKeyEls.get(key); el?.remove(); vaultKeyEls.delete(key); }
+      if(!data[key]){ vaultKeyEls.get(key).el.remove(); vaultKeyEls.delete(key); }
     }
     keys.forEach(key => {
-      if(!vaultKeyEls.has(key)) addVaultCardEl(key, data[key]);
+      const card = vaultKeyEls.get(key);
+      if(card) card.update(data[key]);
+      else addVaultCardEl(key, data[key]);
     });
 
     vaultEmpty.style.display = keys.length ? 'none' : 'block';
   });
+}
+
+function createVaultHeader(key, initialTitle){
+  let savedTitle = '';
+  let saving = false;
+
+  const el = document.createElement('div');
+  el.className = 'vheader';
+
+  const titleBtn = document.createElement('button');
+  titleBtn.type = 'button';
+  titleBtn.className = 'vheader-button';
+  titleBtn.setAttribute('aria-expanded', 'false');
+  const titleText = document.createElement('span');
+  titleText.className = 'vheader-text';
+  titleText.dir = 'auto';
+  const editHint = document.createElement('span');
+  editHint.className = 'vheader-edit';
+  editHint.textContent = 'edit';
+  editHint.setAttribute('aria-hidden', 'true');
+  titleBtn.append(titleText, editHint);
+
+  const editor = document.createElement('form');
+  editor.className = 'vheader-editor';
+  editor.id = 'vault-header-editor-' + key;
+  editor.hidden = true;
+  titleBtn.setAttribute('aria-controls', editor.id);
+
+  const label = document.createElement('label');
+  label.textContent = 'Header / summary';
+  const input = document.createElement('input');
+  input.className = 'vheader-input';
+  input.id = 'vault-header-' + key;
+  input.type = 'text';
+  input.maxLength = MAX_HEADER_LENGTH;
+  input.autocomplete = 'off';
+  input.placeholder = 'e.g. Important — project notes';
+  input.enterKeyHint = 'done';
+  input.dir = 'auto';
+  label.htmlFor = input.id;
+
+  const help = document.createElement('p');
+  help.className = 'vheader-help';
+  help.id = input.id + '-help';
+  help.textContent = 'Up to ' + MAX_HEADER_LENGTH + ' characters. Clear and save to remove the header.';
+  input.setAttribute('aria-describedby', help.id);
+
+  const controls = document.createElement('div');
+  controls.className = 'vheader-controls';
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'submit';
+  saveBtn.textContent = 'Save';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'Cancel';
+  controls.append(saveBtn, cancelBtn);
+
+  const status = document.createElement('p');
+  status.className = 'vheader-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  status.hidden = true;
+  editor.append(label, input, help, controls, status);
+  el.append(titleBtn, editor);
+
+  function setStatus(message){
+    status.textContent = message;
+    status.hidden = !message;
+  }
+
+  function updateTitle(value){
+    const title = typeof value === 'string' ? value : '';
+    if(title !== savedTitle && !editor.hidden && !saving){
+      setStatus('Header changed on another device. Save to use your draft, or Cancel to use the synced header.');
+    }
+    savedTitle = title;
+    titleText.textContent = title || '+ add header';
+    editHint.hidden = !title;
+    titleBtn.classList.toggle('is-empty', !title);
+    titleBtn.setAttribute('aria-label', title ? 'Edit header: ' + title : 'Add header');
+  }
+
+  function closeEditor(){
+    const restoreFocus = el.contains(document.activeElement) || document.activeElement === document.body;
+    editor.hidden = true;
+    titleBtn.hidden = false;
+    titleBtn.setAttribute('aria-expanded', 'false');
+    setStatus('');
+    if(restoreFocus && el.isConnected && document.getElementById('vault').classList.contains('open')) titleBtn.focus();
+  }
+
+  titleBtn.onclick = () => {
+    input.value = savedTitle;
+    setStatus('');
+    titleBtn.hidden = true;
+    titleBtn.setAttribute('aria-expanded', 'true');
+    editor.hidden = false;
+    input.focus();
+    input.select();
+  };
+  cancelBtn.onclick = closeEditor;
+  input.addEventListener('keydown', e => {
+    if(e.isComposing){
+      if(e.key === 'Enter') e.preventDefault();
+      return;
+    }
+    if(e.key === 'Escape' && !saving){
+      e.preventDefault();
+      closeEditor();
+    }
+  });
+  // Keep the global image-paste handler out of this text-only editor.
+  input.addEventListener('paste', e => e.stopPropagation());
+
+  editor.addEventListener('submit', async e => {
+    e.preventDefault();
+    if(saving || !keptRef) return;
+    const title = input.value.trim();
+    if(title.length > MAX_HEADER_LENGTH){
+      setStatus('Please keep the header to ' + MAX_HEADER_LENGTH + ' characters.');
+      return;
+    }
+    if(title === savedTitle){ closeEditor(); return; }
+    saving = true;
+    input.readOnly = true;
+    saveBtn.disabled = cancelBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+    editor.setAttribute('aria-busy', 'true');
+    setStatus('Saving header…');
+    try{
+      const result = await keptRef.child(key).transaction(current => {
+        // Preserve all clip fields and never recreate an item deleted elsewhere.
+        if(current === null) return;
+        const updated = { ...current };
+        if(title) updated.title = title;
+        else delete updated.title;
+        return updated;
+      }, undefined, false);
+      if(!result.committed) throw new Error('Item is no longer available.');
+      updateTitle(result.snapshot.val()?.title);
+      closeEditor();
+    }catch(err){
+      console.error('saveVaultHeader failed:', err);
+      setStatus('Could not save the header. Your draft is still here; please try again.');
+    }finally{
+      saving = false;
+      input.readOnly = false;
+      saveBtn.disabled = cancelBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+      editor.removeAttribute('aria-busy');
+    }
+  });
+
+  updateTitle(initialTitle);
+  return { el, updateTitle };
 }
 
 function addVaultCardEl(key, item){
@@ -869,9 +1068,22 @@ function addVaultCardEl(key, item){
   content.className = 'vcontent';
   renderContent(content, item);
 
-  vslip.append(top, content);
+  const header = createVaultHeader(key, item.title);
+  vslip.append(top, header.el, content);
   vaultFeed.appendChild(vslip);
-  vaultKeyEls.set(key, vslip);
+  vaultKeyEls.set(key, {
+    el: vslip,
+    update(nextItem){
+      header.updateTitle(nextItem.title);
+      if(nextItem.type !== item.type || nextItem.content !== item.content){
+        content.replaceChildren();
+        renderContent(content, nextItem);
+        tag.textContent = nextItem.type.toUpperCase();
+      }
+      date.textContent = nextItem.keptAt ? new Date(nextItem.keptAt).toLocaleString() : '';
+      item = nextItem;
+    }
+  });
 }
 
 /* ---- secret unlock: type "iii" anywhere on keyboard (desktop), or type it into the paste box (mobile) ---- */
