@@ -105,7 +105,7 @@
 
   .slip{
     width:100%;
-    max-width:420px;
+    max-width:none;
     background:var(--paper);
     color:var(--ink);
     border-radius:2px;
@@ -221,7 +221,7 @@
     padding:12px 12px calc(12px + env(safe-area-inset-bottom));
   }
   .composer{
-    max-width:420px;
+    max-width:none;
     margin:0 auto;
     display:flex;
     flex-direction:column;
@@ -446,7 +446,7 @@
     letter-spacing:.03em;
   }
   .vslip{
-    width:100%; max-width:420px;
+    width:100%; max-width:none;
     background:var(--cp-panel);
     border:1px solid rgba(0,255,242,.3);
     border-left:3px solid var(--cp-magenta);
@@ -652,12 +652,10 @@ function listen(){
     const data = snap.val() || {};
     const keys = Object.keys(data);
 
-    // remove cards that no longer exist
     for(const key of [...cardEls.keys()]){
       if(!data[key]){ removeCardEl(key); }
     }
 
-    // sort newest first
     keys.sort((a,b) => (data[b].createdAt||0) - (data[a].createdAt||0));
 
     keys.forEach(key => {
@@ -682,8 +680,6 @@ function addCardEl(key, item, skipAnim){
   const slip = document.createElement('div');
   slip.className = 'slip ' + item.type;
   if(skipAnim) slip.style.animation = 'none';
-  // override the type-based border color with the next color in the rotation,
-  // so each new paste is visually distinct even from others of the same type
   slip.style.borderLeftColor = nextAccentColor();
 
   const top = document.createElement('div');
@@ -722,12 +718,8 @@ function addCardEl(key, item, skipAnim){
   renderContent(content, item);
 
   slip.append(top, content);
-
-  // newest first
   feed.insertBefore(slip, feed.firstChild);
 
-  // collapse long content by default so the feed stays scannable;
-  // add a toggle only if it actually overflows the clamp height
   const applyClampCheck = () => {
     if(content.scrollHeight > content.clientHeight + 4 && !content.nextElementSibling?.classList.contains('expand-btn')){
       content.classList.add('clamped');
@@ -789,8 +781,6 @@ function tick(){
     const secs = Math.floor((remaining % 60000) / 1000);
     rec.timerEl.textContent = `${mins}:${secs.toString().padStart(2,'0')}`;
     rec.timerEl.className = 'timer' + (frac < 0.05 ? ' danger' : frac < 0.2 ? ' warn' : '');
-
-    // fade like thermal paper losing ink as time runs out
     const opacity = 0.35 + 0.65 * frac;
     const blur = (1 - frac) * 1.1;
     rec.el.style.opacity = opacity.toFixed(2);
@@ -833,7 +823,6 @@ function addItem(type, content){
   });
 }
 
-/* ---- keep forever (moves an item out of the fading feed into the vault) ---- */
 function keepItem(key, item, btn){
   if(!keptRef || !clipsRef) return;
   if(btn){
@@ -846,7 +835,6 @@ function keepItem(key, item, btn){
     keptAt: firebase.database.ServerValue.TIMESTAMP
   }).then(() => {
     if(btn){ btn.textContent = 'kept ✓'; btn.classList.add('copied'); }
-    // small delay so the "kept ✓" state is actually visible before the card disappears
     setTimeout(() => clipsRef.child(key).remove(), 500);
   }).catch(err => {
     console.error('keepItem failed:', err);
@@ -858,7 +846,6 @@ function keepItem(key, item, btn){
   });
 }
 
-/* ---- vault (hidden permanent page) ---- */
 function listenVault(){
   keptRef.on('value', snap => {
     const data = snap.val() || {};
@@ -987,7 +974,6 @@ function createVaultHeader(key, initialTitle){
       closeEditor();
     }
   });
-  // Keep the global image-paste handler out of this text-only editor.
   input.addEventListener('paste', e => e.stopPropagation());
 
   editor.addEventListener('submit', async e => {
@@ -1007,7 +993,6 @@ function createVaultHeader(key, initialTitle){
     setStatus('Saving header…');
     try{
       const result = await keptRef.child(key).transaction(current => {
-        // Preserve all clip fields and never recreate an item deleted elsewhere.
         if(current === null) return;
         const updated = { ...current };
         if(title) updated.title = title;
@@ -1086,7 +1071,6 @@ function addVaultCardEl(key, item){
   });
 }
 
-/* ---- secret unlock: type "iii" anywhere on keyboard (desktop), or type it into the paste box (mobile) ---- */
 let keyBuffer = '';
 document.addEventListener('keydown', e => {
   const tag = (e.target && e.target.tagName) || '';
@@ -1100,7 +1084,7 @@ document.addEventListener('keydown', e => {
 
 function unlockVault(){
   const popup = document.getElementById('unlockPopup');
-  popup.classList.remove('show'); void popup.offsetWidth; // restart animation if triggered again quickly
+  popup.classList.remove('show'); void popup.offsetWidth;
   popup.classList.add('show');
 
   setTimeout(() => {
@@ -1124,7 +1108,6 @@ document.getElementById('vaultExit').addEventListener('click', () => {
   setTimeout(() => warp.classList.remove('active'), 650);
 });
 
-/* ---- text / link input ---- */
 function updateSendState(){
   sendBtn.disabled = pasteInput.value.trim().length === 0;
 }
@@ -1157,7 +1140,6 @@ function submitText(){
   updateSendState();
 }
 
-/* ---- image paste (desktop, and mobile browsers that support it) ---- */
 document.addEventListener('paste', handlePaste);
 
 function handlePaste(e){
@@ -1173,7 +1155,6 @@ function handlePaste(e){
   }
 }
 
-/* ---- image upload button (mobile fallback: camera / gallery) ---- */
 fileBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', () => {
   const file = fileInput.files[0];
