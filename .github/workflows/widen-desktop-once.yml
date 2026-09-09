@@ -16,8 +16,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Widen desktop cards and composer
-        shell: python
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
 
           path = Path("index.html")
@@ -32,7 +33,7 @@ jobs:
           if needle not in text:
               raise SystemExit("Could not find expected CSS insertion point.")
 
-          desktop_css = r'''  /* Desktop: expand clipboard UI to the available window width */
+          desktop_css = '''  /* Desktop: expand clipboard UI to the available window width */
           @media (min-width: 768px){
             #feed{
               padding-left:clamp(24px, 4vw, 64px);
@@ -67,6 +68,7 @@ jobs:
 '''
 
           path.write_text(text.replace(needle, desktop_css + needle, 1), encoding="utf-8")
+          PY
 
       - name: Commit index.html
         shell: bash
