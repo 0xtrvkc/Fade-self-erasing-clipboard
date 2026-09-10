@@ -383,5 +383,9 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
   .composer { padding-top: 7px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  body:not(.vault-breaching) *, body:not(.vault-breaching) *::before, body:not(.vault-breaching) *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
