@@ -89,6 +89,14 @@
       return ['https:', 'http:'].includes(url.protocol) ? url.href : null;
     } catch { return null; }
   }
+  function linkPreview(value) {
+    const href = safeLink(value);
+    if (!href) return '';
+    const url = new URL(href);
+    let path = url.pathname === '/' ? '' : url.pathname;
+    try { path = decodeURIComponent(path); } catch { /* Keep the valid encoded path. */ }
+    return url.hostname.replace(/^www\./i, '') + path;
+  }
   return { TTL, COLORS, color, isClip, timestamp, expired, group, groupId, groups, rank,
-    ordered, matches, defaultColor, movePlan, patchCurrent, safeLink };
+    ordered, matches, defaultColor, movePlan, patchCurrent, safeLink, linkPreview };
 });

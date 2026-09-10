@@ -373,8 +373,9 @@ function renderContent(el, item) {
     img.src = item.content; img.alt = item.title || 'Clipboard image'; img.loading = 'lazy';
     el.append(img);
   } else if (item.type === 'link' && M.safeLink(item.content)) {
-    const a = element('a', '', item.content);
+    const a = element('a', 'compact-link', M.linkPreview(item.content));
     a.href = M.safeLink(item.content); a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.setAttribute('aria-label', 'Open link: ' + M.linkPreview(item.content));
     el.append(a);
   } else el.textContent = item.type === 'image' ? 'Image unavailable' : item.content;
 }

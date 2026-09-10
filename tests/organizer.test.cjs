@@ -115,6 +115,11 @@ test('legacy www links open as HTTPS and active URL schemes are rejected', () =>
   assert.equal(M.safeLink('javascript:alert(1)'), null);
   assert.equal(M.safeLink('data:text/html,test'), null);
 });
+test('link previews keep the useful host and path but omit query noise', () => {
+  assert.equal(M.linkPreview('https://www.example.com/reports/today?token=secret#section'), 'example.com/reports/today');
+  assert.equal(M.linkPreview('www.example.com'), 'example.com');
+  assert.equal(M.linkPreview('javascript:alert(1)'), '');
+});
 test('default colors are stable across renders and devices', () => {
   assert.equal(M.defaultColor('-stable-key'), M.defaultColor('-stable-key'));
   assert.ok(M.COLORS.some(c => c[1] === M.defaultColor('-stable-key')));

@@ -36,6 +36,8 @@ The responsive layout uses larger touch targets, a bottom-sheet organizer on sma
 
 On desktops with a mouse or trackpad, the workspace uses a compact layout by default: the grid fills the available width, card actions share the top row, text previews show three lines, and the composer fits on one row. List view uses short horizontal rows with two-line previews. **Show more** expands text or image thumbnails without changing the saved content. Phones and touch tablets retain the larger controls.
 
+Clip content uses a compact 14px type size. Link cards show only the useful domain and path on one line; long paths are visually shortened and query strings are hidden. Opening or copying a link still uses the complete original URL.
+
 ## Sync and expiry
 
 Fade uses the existing Firebase Realtime Database paths, `clips` and `kept`. Organization is optional metadata on each item, so existing records continue to work without a migration or new database paths.
