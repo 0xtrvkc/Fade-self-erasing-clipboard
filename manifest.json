@@ -1,11 +1,10 @@
 {
-  "name": "FADE",
+  "name": "Fade \u2014 self-erasing clipboard",
   "short_name": "FADE",
-  "description": "FADE",
+  "description": "A cross-device clipboard with groups, color labels, and a hidden vault.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
   "icons": [
