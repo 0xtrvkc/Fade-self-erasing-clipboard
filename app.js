@@ -1003,7 +1003,6 @@ function openVault(animate = false) {
 }
 function unlockVault() {
   if (activeScope === 'vault' || unlockTimer) return;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { openVault(); return; }
   $('unlockPopup').classList.remove('show');
   void $('unlockPopup').offsetWidth;
   document.body.classList.add('vault-breaching');
