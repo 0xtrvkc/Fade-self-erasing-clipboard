@@ -977,7 +977,18 @@ async function processImage(view, file, destinationId = view.ui.Destination.valu
   finally { if (source) URL.revokeObjectURL(source); }
 }
 
-let keyBuffer = '', lastKeyAt = 0;
+let keyBuffer = '', lastKeyAt = 0, keyBufferTarget = null;
+
+function clearTypedVaultCode(target) {
+  if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return;
+  const start = target.selectionStart;
+  const end = target.selectionEnd;
+  if (start === null || end === null || start !== end || start < 2) return;
+  if (target.value.slice(start - 2, start).toLowerCase() !== 'ii') return;
+  target.setRangeText('', start - 2, start, 'end');
+  target.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 function openVault(animate = false) {
   activeScope = 'vault';
   $('mainWorkspace').inert = true;
@@ -1009,7 +1020,7 @@ function unlockVault() {
 function closeVault() {
   cancelDrag();
   if (dialog.open) closeDialog();
-  $('vault').hidden = true; $('mainWorkspace').inert = false; activeScope = 'clips'; keyBuffer = '';
+  $('vault').hidden = true; $('mainWorkspace').inert = false; activeScope = 'clips'; keyBuffer = ''; keyBufferTarget = null;
   scopes.clips.ui.Input.focus({ preventScroll: true });
 }
 $('vaultExit').onclick = closeVault;
@@ -1018,11 +1029,18 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && drag) { e.preventDefault(); cancelDrag(); return; }
   if (dialog.open) return;
   if (e.key === 'Escape' && activeScope === 'vault') { e.preventDefault(); closeVault(); return; }
-  if (e.target.closest('input, textarea, select, [contenteditable=true]') || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
-  if (Date.now() - lastKeyAt > 1800) keyBuffer = '';
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  if (Date.now() - lastKeyAt > 1800 || keyBufferTarget !== e.target) keyBuffer = '';
   lastKeyAt = Date.now();
+  keyBufferTarget = e.target;
   keyBuffer = e.key.length === 1 ? (keyBuffer + e.key.toLowerCase()).slice(-3) : '';
-  if (keyBuffer === 'iii') { keyBuffer = ''; unlockVault(); }
+  if (keyBuffer === 'iii') {
+    e.preventDefault();
+    clearTypedVaultCode(e.target);
+    keyBuffer = '';
+    keyBufferTarget = null;
+    unlockVault();
+  }
 });
 document.addEventListener('paste', e => {
   if (dialog.open) return;
