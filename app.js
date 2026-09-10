@@ -978,10 +978,15 @@ async function processImage(view, file, destinationId = view.ui.Destination.valu
 }
 
 let keyBuffer = '', lastKeyAt = 0;
-function openVault() {
+function openVault(animate = false) {
   activeScope = 'vault';
   $('mainWorkspace').inert = true;
   $('vault').hidden = false;
+  if (animate) {
+    $('vault').classList.remove('vault-entering');
+    void $('vault').offsetWidth;
+    $('vault').classList.add('vault-entering');
+  }
   scopes.vault.ui.Search.focus();
   requestAnimationFrame(() => { for (const rec of scopes.vault.cards.values()) checkExpand(rec); });
 }
@@ -990,8 +995,16 @@ function unlockVault() {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) { openVault(); return; }
   $('unlockPopup').classList.remove('show');
   void $('unlockPopup').offsetWidth;
+  document.body.classList.add('vault-breaching');
   $('unlockPopup').classList.add('show');
-  unlockTimer = setTimeout(() => { unlockTimer = null; openVault(); $('unlockPopup').classList.remove('show'); }, 620);
+  unlockTimer = setTimeout(() => openVault(true), 1120);
+  setTimeout(() => {
+    clearTimeout(unlockTimer);
+    unlockTimer = null;
+    $('unlockPopup').classList.remove('show');
+    $('vault').classList.remove('vault-entering');
+    document.body.classList.remove('vault-breaching');
+  }, 1620);
 }
 function closeVault() {
   cancelDrag();

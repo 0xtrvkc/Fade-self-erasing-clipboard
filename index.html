@@ -23,7 +23,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260910-link-preview">
+<link rel="stylesheet" href="styles.css?v=20260910-vault-breach">
 </head>
 <body>
 <section id="mainWorkspace" class="workspace" aria-label="Clipboard" >
@@ -104,7 +104,27 @@
     </div>
   </div></footer>
 </section>
-<div id="unlockPopup" aria-hidden="true"><div class="unlock-card"><small>access · granted</small>VAULT UNLOCKED</div></div>
+<div id="unlockPopup" aria-hidden="true">
+  <div class="breach-grid"></div>
+  <div class="breach-noise"></div>
+  <div class="breach-scan"></div>
+  <div class="breach-ring"><span>III</span></div>
+  <div class="breach-panel">
+    <span class="breach-code">ROOT // RESTRICTED // SECTOR_III</span>
+    <strong class="breach-title" data-text="VAULT//OPEN">VAULT//OPEN</strong>
+    <div class="breach-meter"><span></span></div>
+    <div class="breach-status">
+      <span>BYPASSING MEMORY LOCK</span>
+      <span>DECRYPTING PERMANENT STORAGE</span>
+      <span>ACCESS OVERRIDE ACCEPTED</span>
+    </div>
+  </div>
+  <div class="breach-bars">
+    <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+  </div>
+  <div class="breach-shutter breach-shutter-top"></div>
+  <div class="breach-shutter breach-shutter-bottom"></div>
+</div>
 <dialog id="actionDialog" aria-labelledby="dialogTitle">
   <div class="dialog-header"><h2 id="dialogTitle">Organize</h2><button id="dialogClose" type="button" aria-label="Close dialog">×</button></div>
   <div class="dialog-body" id="dialogBody"></div>
@@ -114,6 +134,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="organizer.js?v=20260910-link-preview"></script>
-<script src="app.js?v=20260910-link-preview"></script>
+<script src="app.js?v=20260910-vault-breach"></script>
 </body>
 </html>

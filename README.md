@@ -34,6 +34,8 @@ On desktop, **Enter** adds a clip and **Shift+Enter** inserts a line break. On t
 
 The responsive layout uses larger touch targets, a bottom-sheet organizer on smaller screens, and a composer outside the scrolling board. Browser zoom is enabled. Reduced-motion preferences skip the vault transition. Content fades gradually; buttons and timers stay legible.
 
+Entering `iii` triggers a full-screen vault-breach sequence with chromatic text tearing, data streaks, scanlines, a perspective grid, screen distortion, shutters, and a hard vault reveal. The animation lasts about 1.6 seconds and is skipped automatically when the device requests reduced motion.
+
 On desktops with a mouse or trackpad, the workspace uses a compact layout by default: the grid fills the available width, card actions share the top row, text previews show three lines, and the composer fits on one row. List view uses short horizontal rows with two-line previews. **Show more** expands text or image thumbnails without changing the saved content. Phones and touch tablets retain the larger controls.
 
 Clip content uses a compact 14px type size. Link cards show only the useful domain and path on one line; long paths are visually shortened and query strings are hidden. Opening or copying a link still uses the complete original URL.
