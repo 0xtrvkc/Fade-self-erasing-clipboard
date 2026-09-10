@@ -34,6 +34,8 @@ On desktop, **Enter** adds a clip and **Shift+Enter** inserts a line break. On t
 
 The responsive layout uses larger touch targets, a bottom-sheet organizer on smaller screens, and a composer outside the scrolling board. Browser zoom is enabled. Reduced-motion preferences skip the vault transition. Content fades gradually; buttons and timers stay legible.
 
+On desktops with a mouse or trackpad, the workspace uses a compact layout by default: the grid fills the available width, card actions share the top row, text previews show three lines, and the composer fits on one row. List view uses short horizontal rows with two-line previews. **Show more** expands text or image thumbnails without changing the saved content. Phones and touch tablets retain the larger controls.
+
 ## Sync and expiry
 
 Fade uses the existing Firebase Realtime Database paths, `clips` and `kept`. Organization is optional metadata on each item, so existing records continue to work without a migration or new database paths.

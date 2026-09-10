@@ -361,7 +361,11 @@ function updateCard(view, rec, item) {
   }
 }
 function checkExpand(rec) {
-  if (rec.content.clientHeight) rec.expand.hidden = !rec.content.classList.contains('expanded') && rec.content.scrollHeight <= rec.content.clientHeight + 3;
+  if (!rec.content.clientHeight) return;
+  const image = rec.content.querySelector('img');
+  const fullImageHeight = image?.naturalWidth ? Math.min(image.naturalWidth, rec.content.clientWidth) * image.naturalHeight / image.naturalWidth : 0;
+  const thumbnail = image && image.clientHeight + 3 < fullImageHeight;
+  rec.expand.hidden = !rec.content.classList.contains('expanded') && rec.content.scrollHeight <= rec.content.clientHeight + 3 && !thumbnail;
 }
 function renderContent(el, item) {
   if (item.type === 'image' && /^data:image\/(jpeg|png|webp|gif);base64,/i.test(item.content)) {
@@ -936,8 +940,9 @@ async function addItem(view, type, content, destinationId = view.ui.Destination.
 }
 function updateComposer(view) {
   view.ui.Add.disabled = view.adding || !view.ui.Input.value.trim();
+  const compact = matchMedia('(min-width: 900px) and (pointer: fine)').matches;
   view.ui.Input.style.height = 'auto';
-  view.ui.Input.style.height = Math.min(140, Math.max(48, view.ui.Input.scrollHeight)) + 'px';
+  view.ui.Input.style.height = Math.min(compact ? 112 : 140, Math.max(compact ? 40 : 48, view.ui.Input.scrollHeight)) + 'px';
 }
 async function submitText(view) {
   if (view.adding) return;
@@ -1071,5 +1076,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) tick
 let resizeTimer;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => { for (const rec of scopes[activeScope].cards.values()) checkExpand(rec); }, 150);
+  resizeTimer = setTimeout(() => {
+    updateComposer(scopes[activeScope]);
+    for (const rec of scopes[activeScope].cards.values()) checkExpand(rec);
+  }, 150);
 });
