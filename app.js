@@ -900,7 +900,9 @@ async function imagePng(content) {
 }
 function downloadImage(item) {
   const a = document.createElement('a'); a.href = item.content;
-  a.download = 'fade-image.' + (/^data:image\/png/i.test(item.content) ? 'png' : 'jpg');
+  const match = /^data:image\/(png|jpeg|webp|gif);base64,/i.exec(item.content);
+  const extension = match?.[1]?.toLowerCase() === 'jpeg' ? 'jpg' : (match?.[1]?.toLowerCase() || 'png');
+  a.download = 'fade-image.' + extension;
   document.body.append(a); a.click(); a.remove();
 }
 async function copyItem(item, btn) {
@@ -970,8 +972,12 @@ async function processImage(view, file, destinationId = view.ui.Destination.valu
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(img.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
     const context = canvas.getContext('2d');
-    context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height); context.drawImage(img, 0, 0, canvas.width, canvas.height);
-    await addItem(view, 'image', canvas.toDataURL('image/jpeg', .8), destinationId);
+    const outputType = file.type === 'image/png' ? 'image/png' : file.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
+    if (outputType === 'image/jpeg') {
+      context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    context.drawImage(img, 0, 0, canvas.width, canvas.height);
+    await addItem(view, 'image', canvas.toDataURL(outputType, .8), destinationId);
     toast('Image added.');
   } catch (err) { toast(err.message || 'Could not add the image. Please try again.'); }
   finally { if (source) URL.revokeObjectURL(source); }
@@ -1048,10 +1054,12 @@ document.addEventListener('paste', e => {
   if (editor && editor !== view.ui.Input) return;
   const items = e.clipboardData?.items;
   if (!items) return;
-  for (const it of items) {
-    if (it.type.startsWith('image/')) {
-      const file = it.getAsFile(); if (file) { e.preventDefault(); processImage(view, file); } return;
-    }
+  const images = Array.from(items).filter(it => it.type.startsWith('image/')).map(it => it.getAsFile()).filter(Boolean);
+  if (images.length) {
+    e.preventDefault();
+    const destinationId = view.ui.Destination.value;
+    for (const file of images) processImage(view, file, destinationId);
+    return;
   }
   if (!editor) {
     const text = e.clipboardData.getData('text/plain').trim();
