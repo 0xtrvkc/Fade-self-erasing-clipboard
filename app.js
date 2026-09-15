@@ -961,26 +961,19 @@ async function submitText(view) {
   finally { view.adding = false; updateComposer(view); }
 }
 async function processImage(view, file, destinationId = view.ui.Destination.value) {
-  let source;
   try {
     requireConnection();
-    if (!file.type.startsWith('image/')) throw new Error('Choose an image file.');
+    if (!/^image\/(png|jpeg|webp|gif)$/i.test(file.type)) throw new Error('Choose a JPEG, PNG, WebP, or GIF image.');
     if (file.size > 20 * 1024 * 1024) throw new Error('Choose an image smaller than 20 MB.');
-    source = URL.createObjectURL(file);
-    const img = await loadImage(source);
-    const scale = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
-    const context = canvas.getContext('2d');
-    const outputType = file.type === 'image/png' ? 'image/png' : file.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
-    if (outputType === 'image/jpeg') {
-      context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height);
-    }
-    context.drawImage(img, 0, 0, canvas.width, canvas.height);
-    await addItem(view, 'image', canvas.toDataURL(outputType, .8), destinationId);
+    const content = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read this image.'));
+      reader.onerror = () => reject(new Error('Could not read this image.'));
+      reader.readAsDataURL(file);
+    });
+    await addItem(view, 'image', content, destinationId);
     toast('Image added.');
   } catch (err) { toast(err.message || 'Could not add the image. Please try again.'); }
-  finally { if (source) URL.revokeObjectURL(source); }
 }
 
 let keyBuffer = '', lastKeyAt = 0, keyBufferTarget = null;
