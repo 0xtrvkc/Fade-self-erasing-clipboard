@@ -1063,6 +1063,40 @@ document.addEventListener('paste', e => {
   }
 });
 
+let imageDragDepth = 0;
+function draggingFiles(e) { return Array.from(e.dataTransfer?.types || []).includes('Files'); }
+function clearImageDropState() {
+  imageDragDepth = 0;
+  document.body.classList.remove('image-drop-ready');
+}
+document.addEventListener('dragenter', e => {
+  if (!draggingFiles(e)) return;
+  e.preventDefault();
+  imageDragDepth++;
+  document.body.classList.add('image-drop-ready');
+});
+document.addEventListener('dragover', e => {
+  if (!draggingFiles(e)) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+});
+document.addEventListener('dragleave', e => {
+  if (!draggingFiles(e)) return;
+  imageDragDepth = Math.max(0, imageDragDepth - 1);
+  if (!imageDragDepth) document.body.classList.remove('image-drop-ready');
+});
+document.addEventListener('drop', e => {
+  if (!draggingFiles(e)) return;
+  e.preventDefault();
+  clearImageDropState();
+  const files = Array.from(e.dataTransfer?.files || []).filter(file => file.type.startsWith('image/'));
+  if (!files.length) { toast('Drop a JPEG, PNG, WebP, or GIF image.'); return; }
+  const view = scopes[activeScope];
+  const destinationId = view.ui.Destination.value;
+  for (const file of files) processImage(view, file, destinationId);
+});
+window.addEventListener('blur', clearImageDropState);
+
 function bindView(view) {
   view.ui.NewGroup.onclick = () => openGroupDialog(view);
   view.ui.Search.oninput = () => { view.query = view.ui.Search.value.trim(); view.selected.clear(); render(view); };
