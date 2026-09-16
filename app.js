@@ -992,6 +992,7 @@ function openVault(animate = false) {
   activeScope = 'vault';
   $('mainWorkspace').inert = true;
   $('vault').hidden = false;
+  $('vault').classList.remove('vault-preparing');
   if (animate) {
     $('vault').classList.remove('vault-entering');
     void $('vault').offsetWidth;
@@ -1002,18 +1003,33 @@ function openVault(animate = false) {
 }
 function unlockVault() {
   if (activeScope === 'vault' || unlockTimer) return;
-  $('unlockPopup').classList.remove('show');
-  void $('unlockPopup').offsetWidth;
-  document.body.classList.add('vault-breaching');
-  $('unlockPopup').classList.add('show');
-  unlockTimer = setTimeout(() => openVault(true), 1120);
-  setTimeout(() => {
-    clearTimeout(unlockTimer);
-    unlockTimer = null;
-    $('unlockPopup').classList.remove('show');
-    $('vault').classList.remove('vault-entering');
-    document.body.classList.remove('vault-breaching');
-  }, 1620);
+  // Block a second trigger while the two pre-warm frames are pending.
+  unlockTimer = -1;
+  const popup = $('unlockPopup');
+  const workspace = $('mainWorkspace');
+  const vault = $('vault');
+  popup.classList.remove('show');
+  popup.classList.add('breach-ready');
+  workspace.classList.add('breach-ready');
+
+  // Build the hidden vault and its compositor layers before the breach begins.
+  // This avoids a full layout/paint in the middle of the 1.6s animation.
+  vault.hidden = false;
+  vault.classList.add('vault-preparing');
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.body.classList.add('vault-breaching');
+    popup.classList.add('show');
+    unlockTimer = setTimeout(() => openVault(true), 1120);
+    setTimeout(() => {
+      clearTimeout(unlockTimer);
+      unlockTimer = null;
+      popup.classList.remove('show', 'breach-ready');
+      workspace.classList.remove('breach-ready');
+      vault.classList.remove('vault-entering', 'vault-preparing');
+      document.body.classList.remove('vault-breaching');
+    }, 1620);
+  }));
 }
 function closeVault() {
   cancelDrag();
