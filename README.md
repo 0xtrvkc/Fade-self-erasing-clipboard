@@ -10,7 +10,7 @@ The normal clipboard and the `iii` vault have the same organization controls:
 
 - **Groups:** create named groups, rename them, set a group color, collapse sections, and move groups up or down. Removing a group moves its clips to Unfiled.
 - **Drag to move:** drag a clip by its dotted handle to reorder it or move it between groups. Touch dragging includes edge scrolling. Scroll normally by touching anywhere outside the handle.
-- **Move without dragging:** tap the handle or open **•••** to choose a group or use **Move earlier / Move later**. These controls also work with a keyboard.
+- **Move without dragging:** tap the handle or open **â€¢â€¢â€¢** to choose a group or use **Move earlier / Move later**. These controls also work with a keyboard.
 - **Color labels:** choose from eight named colors per clip. A group can also recolor all of its clips.
 - **Headers:** add or edit a title / summary on any clip, including temporary ones. An open draft survives incoming sync updates; remote header changes are flagged before you overwrite them.
 - **Pin:** keep a clip at the top of its group. Pinning a temporary clip does not extend its timer.
@@ -26,6 +26,8 @@ Group names, colors, membership, pin status, titles, and clip order travel with 
 1. Open Fade on both devices.
 2. Type or paste into the composer, select a destination group, and tap **Add clip**. The image button accepts an image from your device. Clipboard images can also be pasted.
 3. Tap **Copy** on the other device. Images are converted to PNG for clipboard compatibility; if the browser blocks copying, **Save image** is offered.
+
+The image picker supports selecting several photos at once. To send several saved images from a phone, tap **Select**, choose the image cards, then tap **Share images** to open the native iOS or Android share sheet. Mobile clipboards do not reliably support pasting multiple separate images, so Fade uses native file sharing instead.
 4. Tap **Keep** before the countdown reaches zero to move a clip to the vault, retaining its title, color, and group.
 5. Type `iii` while outside an editor, or type `iii` into the normal composer, to open the vault. On mobile, use the composer. Add notes and images directly to the vault if desired.
 6. Tap **Exit** or press **Escape** to return to the temporary clipboard.
