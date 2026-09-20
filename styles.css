@@ -498,3 +498,37 @@ body.image-drop-ready::after {
 #vaultBoard[data-layout=comfortable] .clip-content { max-height: 110px; }
 #vault .drop-empty { border: 0; border-radius: 0; }
 @media (max-width: 700px) { #vaultBoard { padding-inline: 12px; } }
+
+/* Security gate: animate only composited transforms/opacity; no canvas or frame loop. */
+.keep-hold { position: relative; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.keep-hold::before { content: ''; position: absolute; inset: 0; background: #64f5e833; transform: scaleX(0); transform-origin: left; pointer-events: none; }
+.keep-hold.keep-holding::before { animation: keep-charge 3s linear forwards !important; }
+@keyframes keep-charge { to { transform: scaleX(1); } }
+#keepWarning { padding: 0; width: min(540px, calc(100% - 28px)); max-height: calc(100dvh - 28px); overflow: auto; border: 1px solid #ff4e79; border-radius: 6px; color: #dafdf9; background: #090e16; box-shadow: 0 0 0 5px #ff1f7810, 0 16px 70px #000b; }
+#keepWarning::backdrop { background: #02050cde; }
+.warning-shell { position: relative; isolation: isolate; overflow: hidden; padding: 32px; background: linear-gradient(125deg, #ff1f7812, transparent 50%, #00fff213); }
+.warning-shell::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0 4px, #64f5e808 4px 5px); }
+#keepWarningClose { position: absolute; right: 10px; top: 10px; z-index: 3; min-width: 44px; min-height: 44px; font-size: 25px; color: #dafdf9; border-color: #ff4e7960; background: #101a20; }
+.warning-code { padding-right: 36px; color: #91b9b8; font-size: 10px; letter-spacing: .12em; }
+.warning-sigil { margin: 28px 0 18px; display: grid; place-items: center; width: 52px; height: 52px; border: 1px solid #ff4e79; color: #ff4e79; font-size: 34px; background: #ff1f780c; }
+.warning-eyebrow { font-size: 11px; letter-spacing: .18em; color: #ff7b98; }
+#keepWarningTitle { position: relative; font: 700 clamp(23px, 6.5vw, 38px)/1.2 'Space Grotesk', sans-serif; letter-spacing: .03em; margin: 10px 0 14px; color: #f5f1e6; }
+#keepWarningTitle::after { content: attr(data-text); position: absolute; inset: 0; color: #64f5e8; clip-path: inset(42% 0 32%); opacity: 0; pointer-events: none; }
+#keepWarningDescription { font-size: 13px; line-height: 1.7; color: #ffb3c3; }
+.warning-terminal { border-left: 2px solid #64f5e8; padding: 13px 12px; margin: 22px 0; background: #02080c; font-size: clamp(9px, 2.45vw, 12px); color: #91b9b8; line-height: 2; white-space: nowrap; }
+.warning-terminal > span { display: block; }
+.warning-terminal > span:last-child { color: #64f5e8; }
+.warning-instruction { font-size: 12px; line-height: 1.8; color: #91b9b8; }
+.warning-instruction strong { color: #dafdf9; }
+.warning-footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #2b494c; margin-top: 25px; padding-top: 14px; color: #ff7b98; font-size: 9px; letter-spacing: .08em; }
+.warning-laser { position: absolute; top: 0; left: 0; right: 0; height: 2px; background: #64f5e8; box-shadow: 0 0 14px #64f5e8; opacity: .4; pointer-events: none; }
+/* Explicitly retain these restrained effects with reduced-motion preferences. */
+#keepWarning[open] .warning-laser { animation: warning-scan 5s linear infinite !important; }
+#keepWarning[open] #keepWarningTitle::after { animation: warning-glitch 4.8s steps(1, end) infinite !important; }
+#keepWarning[open] .warning-sigil { animation: warning-twitch 6s steps(1, end) infinite !important; }
+#keepWarning[open] .warning-cursor { animation: warning-cursor 1.4s steps(1, end) infinite !important; }
+@keyframes warning-scan { 0% { transform: translateY(0); opacity: 0; } 10%,80% { opacity: .45; } 100% { transform: translateY(580px); opacity: 0; } }
+@keyframes warning-glitch { 0%,93%,100% { transform: translateX(0); opacity: 0; } 94% { transform: translateX(3px); opacity: .7; } 97% { transform: translateX(-2px); opacity: .5; } }
+@keyframes warning-twitch { 0%,95%,100% { transform: translateX(0); } 96% { transform: translateX(-2px); } 98% { transform: translateX(2px); } }
+@keyframes warning-cursor { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+@media (max-width: 420px) { .warning-shell { padding: 26px 20px; } }

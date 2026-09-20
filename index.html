@@ -23,7 +23,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260920-vault-sheet">
+<link rel="stylesheet" href="styles.css?v=20260920-keep-gate">
 </head>
 <body>
 <section id="mainWorkspace" class="workspace" aria-label="Clipboard" >
@@ -127,6 +127,24 @@
   <div class="breach-shutter breach-shutter-top"></div>
   <div class="breach-shutter breach-shutter-bottom"></div>
 </div>
+<dialog id="keepWarning" closedby="none" aria-labelledby="keepWarningTitle" aria-describedby="keepWarningDescription">
+  <div class="warning-shell">
+    <div class="warning-laser" aria-hidden="true"></div>
+    <button id="keepWarningClose" type="button" aria-label="Close warning">×</button>
+    <div class="warning-code">FADE // VAULT SECURITY</div>
+    <div class="warning-sigil" aria-hidden="true">!</div>
+    <p class="warning-eyebrow">RESTRICTED OPERATION</p>
+    <h2 id="keepWarningTitle" aria-label="UNAUTHORIZED" data-text="UNAUTHORIZED">UNAUTHORIZED</h2>
+    <p id="keepWarningDescription">WARNING. Your keep request has been denied.</p>
+    <div class="warning-terminal" aria-hidden="true">
+      <span>&gt; PERSISTENCE GATE ........ LOCKED</span>
+      <span>&gt; HOLD VERIFICATION ...... FAILED</span>
+      <span>&gt; WRITE TO VAULT ......... BLOCKED<span class="warning-cursor">_</span></span>
+    </div>
+    <p class="warning-instruction">Close this warning. Press and hold <strong>Keep for 3 seconds</strong> to confirm.</p>
+    <div class="warning-footer"><span>NO DATA TRANSFERRED</span><span>SEC / 03</span></div>
+  </div>
+</dialog>
 <dialog id="actionDialog" aria-labelledby="dialogTitle">
   <div class="dialog-header"><h2 id="dialogTitle">Organize</h2><button id="dialogClose" type="button" aria-label="Close dialog">×</button></div>
   <div class="dialog-body" id="dialogBody"></div>
@@ -135,7 +153,8 @@
 <div class="sr-only" id="announcer" role="status" aria-live="polite"></div>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
-<script src="organizer.js?v=20260920-vault-sheet"></script>
-<script src="app.js?v=20260920-vault-sheet"></script>
+<script src="organizer.js?v=20260920-keep-gate"></script>
+<script src="app.js?v=20260920-keep-gate"></script>
 </body>
 </html>
+

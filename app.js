@@ -286,6 +286,87 @@ function fillGroupOptions(select, view, includeUnchanged = false) {
   for (const g of view.groups) select.add(new Option(g.name, g.id));
 }
 
+// One active hold across mouse, pen, touch and keyboard. No per-frame JS work.
+const KEEP_HOLD_MS = 3000;
+let activeKeepHold = null;
+function showKeepWarning() {
+  const warning = $('keepWarning');
+  if (!warning.open) warning.showModal();
+  $('keepWarningClose').focus();
+}
+function cancelKeepHold(warn = false) {
+  const hold = activeKeepHold;
+  if (!hold) return;
+  activeKeepHold = null;
+  clearTimeout(hold.timer);
+  hold.btn.classList.remove('keep-holding');
+  hold.btn.textContent = 'Keep';
+  if (warn) showKeepWarning();
+}
+function bindKeepHold(btn, save, after = () => {}) {
+  let consumed = false, busy = false;
+  btn.classList.add('keep-hold');
+  btn.title = 'Press and hold for 3 seconds to keep';
+  btn.setAttribute('aria-label', 'Keep: press and hold for 3 seconds');
+  function start(kind, id) {
+    if (busy || btn.disabled || $('keepWarning').open) return;
+    cancelKeepHold();
+    consumed = true;
+    const hold = {btn, kind, id, timer: null};
+    activeKeepHold = hold;
+    btn.textContent = 'Hold 3s…';
+    btn.classList.add('keep-holding');
+    hold.timer = setTimeout(async () => {
+      if (activeKeepHold !== hold) return;
+      if (!btn.isConnected || btn.disabled || document.hidden) { cancelKeepHold(); return; }
+      cancelKeepHold();
+      busy = true; btn.disabled = true; btn.textContent = 'Keeping…';
+      try { await save(); }
+      catch (err) { toast(err.message || 'Could not keep this clip.'); }
+      finally { busy = false; btn.disabled = false; btn.textContent = 'Keep'; after(); }
+    }, KEEP_HOLD_MS);
+  }
+  btn.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || e.isPrimary === false) return;
+    start('pointer', e.pointerId);
+    if (activeKeepHold?.btn === btn) btn.setPointerCapture?.(e.pointerId);
+  });
+  btn.addEventListener('pointermove', e => {
+    if (activeKeepHold?.btn !== btn || activeKeepHold.id !== e.pointerId) return;
+    const r = btn.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) cancelKeepHold();
+  });
+  btn.addEventListener('pointerup', e => {
+    if (activeKeepHold?.btn === btn && activeKeepHold.id === e.pointerId) cancelKeepHold(true);
+  });
+  for (const event of ['pointercancel', 'lostpointercapture', 'blur']) btn.addEventListener(event, () => {
+    if (activeKeepHold?.btn === btn) cancelKeepHold();
+  });
+  btn.addEventListener('keydown', e => {
+    if (![' ', 'Enter'].includes(e.key)) return;
+    e.preventDefault();
+    if (!e.repeat) start('keyboard', e.key);
+  });
+  btn.addEventListener('keyup', e => {
+    if (![' ', 'Enter'].includes(e.key)) return;
+    e.preventDefault();
+    if (activeKeepHold?.btn === btn && activeKeepHold.kind === 'keyboard' && activeKeepHold.id === e.key) cancelKeepHold(true);
+  });
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+  btn.addEventListener('click', e => {
+    e.preventDefault();
+    if (consumed) { consumed = false; return; }
+    if (!busy) showKeepWarning();
+  });
+}
+window.addEventListener('blur', () => cancelKeepHold());
+document.addEventListener('visibilitychange', () => { if (document.hidden) cancelKeepHold(); });
+$('keepWarning').addEventListener('cancel', e => e.preventDefault());
+$('keepWarning').addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); }
+});
+$('keepWarningClose').onclick = () => $('keepWarning').close();
+
 function createCard(view, key, item) {
   const el = element('article', 'clip');
   el.dataset.key = key;
@@ -327,11 +408,11 @@ function createCard(view, key, item) {
   rec.expand.setAttribute('aria-controls', rec.content.id);
   const actions = element('div', 'clip-actions');
   actions.append(button(item.type === 'image' && imageContents(item).length > 1 ? 'Open images' : 'Copy', e => imageContents(rec.item).length > 1 ? openImages(rec.item) : copyItem(rec.item, e.currentTarget)));
-  if (view.scope === 'clips') actions.append(button('Keep', async e => {
-    const btn = e.currentTarget; btn.disabled = true;
-    try { await keepItems(view, [key]); } catch (err) { toast(err.message); }
-    finally { btn.disabled = false; }
-  }));
+  if (view.scope === 'clips') {
+    const keep = button('Keep');
+    bindKeepHold(keep, () => keepItems(view, [key]));
+    actions.append(keep);
+  }
   const more = button('•••', () => openItemDialog(view, [key]), 'more-button');
   more.setAttribute('aria-label', 'Organize clip: ' + clipLabel(item));
   actions.append(more);
@@ -1118,6 +1199,7 @@ function closeVault() {
 $('vaultExit').onclick = closeVault;
 document.addEventListener('keydown', e => {
   if (e.defaultPrevented || e.isComposing) return;
+  if ($('keepWarning').open) return;
   if (e.key === 'Escape' && drag) { e.preventDefault(); cancelDrag(); return; }
   if (dialog.open) return;
   if (e.key === 'Escape' && activeScope === 'vault') { e.preventDefault(); closeVault(); return; }
@@ -1209,11 +1291,7 @@ function bindView(view) {
   view.ui.BulkMove.onclick = () => openItemDialog(view, getSelected(view));
   view.ui.BulkShare.onclick = () => shareSelectedImages(view);
   view.ui.BulkDelete.onclick = () => confirmDelete(view, getSelected(view));
-  if (view.scope === 'clips') $('clipsBulkKeep').onclick = async () => {
-    const btn = $('clipsBulkKeep'); btn.disabled = true;
-    try { await keepItems(view, getSelected(view)); } catch (err) { toast(err.message || 'Some clips could not be kept. Please try again.'); }
-    finally { updateSelection(view); }
-  };
+  if (view.scope === 'clips') bindKeepHold($('clipsBulkKeep'), () => keepItems(view, getSelected(view)), () => updateSelection(view));
   view.ui.Input.oninput = () => {
     if (view.scope === 'clips' && view.ui.Input.value.trim().toLowerCase() === 'iii') { view.ui.Input.value = ''; unlockVault(); }
     updateComposer(view);
