@@ -44,11 +44,25 @@
     return [...map.values()].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   }
   function rank(item, scope) { return finite(item.order) ? item.order : -timestamp(item, scope); }
+  function storageBytes(data) {
+    return new TextEncoder().encode(JSON.stringify(data || {})).length;
+  }
+  function storageUsage(used, capacity) {
+    const limit = finite(capacity) && capacity > 0 ? capacity : null;
+    return { used, capacity: limit, remaining: limit === null ? null : Math.max(0, limit - used),
+      percent: limit === null ? null : Math.min(100, used / limit * 100) };
+  }
   function ordered(items, scope, sort = 'manual') {
     return Object.keys(items).filter(k => isClip(items[k])).sort((a, b) => {
       const x = items[a], y = items[b];
       const pinned = Number(!!y.pinned) - Number(!!x.pinned);
-      if (pinned) return pinned;
+      if (pinned && !(scope === 'vault' && sort !== 'manual')) return pinned;
+      if (sort === 'title-asc' || sort === 'title-desc') {
+        const xt = (x.title || '').trim(), yt = (y.title || '').trim();
+        if (!xt !== !yt) return xt ? -1 : 1;
+        const titleDiff = xt.localeCompare(yt, undefined, { numeric: true, sensitivity: 'base' });
+        return (sort === 'title-desc' ? -titleDiff : titleDiff) || a.localeCompare(b);
+      }
       const diff = sort === 'oldest' ? timestamp(x, scope) - timestamp(y, scope)
         : sort === 'newest' ? timestamp(y, scope) - timestamp(x, scope) : rank(x, scope) - rank(y, scope);
       return diff || a.localeCompare(b);
@@ -102,6 +116,6 @@
     try { path = decodeURIComponent(path); } catch { /* Keep the valid encoded path. */ }
     return url.hostname.replace(/^www\./i, '') + path;
   }
-  return { imageContents, TTL, COLORS, color, isClip, timestamp, expired, group, groupId, groups, rank,
+  return { storageBytes, storageUsage, imageContents, TTL, COLORS, color, isClip, timestamp, expired, group, groupId, groups, rank,
     ordered, matches, defaultColor, movePlan, patchCurrent, safeLink, linkPreview };
 });

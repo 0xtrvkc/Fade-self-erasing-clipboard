@@ -23,7 +23,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260920-keep-gate">
+<link rel="stylesheet" href="styles.css?v=20260920-storage-sort">
 </head>
 <body>
 <section id="mainWorkspace" class="workspace" aria-label="Clipboard" >
@@ -69,14 +69,14 @@
 <section id="vault" class="workspace" aria-label="Vault" hidden>
   <header class="app-header">
     <div class="header-inner">
-      <div class="brand"><h2>THE VAULT</h2><span class="subtitle">Your permanent workspace · no expiry</span></div>
+      <div class="brand"><h2>THE VAULT</h2><span class="subtitle">Your permanent workspace · no expiry</span><button id="vaultStorage" class="storage-status" type="button" aria-label="Vault storage usage and budget"><meter id="vaultStorageMeter" min="0" max="100" value="0" aria-label="Vault budget used" hidden></meter><span id="vaultStorageText" role="status">Loading storage…</span></button></div>
       <span class="connection" id="vaultStatus" role="status">Connecting…</span><button id="vaultExit" type="button">Exit ×</button>
     </div>
     <div class="toolbar" aria-label="Vault controls">
       <label class="search"><span class="sr-only">Search vault</span><input id="vaultSearch" type="search" placeholder="Search clips, titles, groups…" autocomplete="off"></label>
       <button class="new-group" id="vaultNewGroup" type="button">+ Group</button>
       <select id="vaultType" aria-label="Filter by content type"><option value="all">All types</option><option value="text">Text</option><option value="link">Links</option><option value="image">Images</option></select>
-      <select id="vaultSort" aria-label="Sort clips"><option value="manual">Your order</option><option value="newest">Newest</option><option value="oldest">Oldest</option></select>
+      <select id="vaultSort" aria-label="Sort vault"><option value="manual">Your order</option><option value="title-asc">Title A–Z</option><option value="title-desc">Title Z–A</option><option value="newest">Date: newest first</option><option value="oldest">Date: oldest first</option></select>
       <button class="view-toggle" id="vaultLayout" type="button" aria-label="Use list layout">List</button>
       <button class="select-toggle" id="vaultSelect" type="button" aria-pressed="false">Select</button>
     </div>
@@ -151,8 +151,7 @@
 <div class="sr-only" id="announcer" role="status" aria-live="polite"></div>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
-<script src="organizer.js?v=20260920-keep-gate"></script>
-<script src="app.js?v=20260920-hidden-keep"></script>
+<script src="organizer.js?v=20260920-storage-sort"></script>
+<script src="app.js?v=20260920-storage-sort"></script>
 </body>
 </html>
-

@@ -14,6 +14,14 @@ const firebaseConfig = {
 
 const M = FadeOrganizer;
 const MAX_HEADER_LENGTH = 160;
+// Optional user-defined Vault budget; never inferred from the Firebase plan.
+const VAULT_CAPACITY_BYTES = null;
+let vaultBytes = null;
+let vaultStorageError = false;
+function vaultCapacity() {
+  try { return Number(localStorage.getItem('fade.vault.capacity')) || VAULT_CAPACITY_BYTES; }
+  catch { return VAULT_CAPACITY_BYTES; }
+}
 let db, connected = false, clockOffset = 0, activeScope = 'clips', toastTimeout, unlockTimer;
 let drag = null;
 const now = () => Date.now() + clockOffset;
@@ -40,7 +48,7 @@ function makeView(scope) {
     'SelectAll', 'BulkShare', 'BulkMove', 'BulkDelete', 'Done', 'NewGroup', 'Count', 'Empty', 'Input', 'Image', 'File', 'Destination', 'Add'];
   return { scope, ref: null, items: {}, cards: new Map(), sections: new Map(), groups: M.groups({}, Array.isArray(prefs.groups) ? prefs.groups : []),
     collapsed: new Set(Array.isArray(prefs.collapsed) ? prefs.collapsed.filter(x => typeof x === 'string') : []),
-    layout: scope === 'vault' ? (prefs.layout === 'comfortable' ? 'comfortable' : 'sheet') : prefs.layout === 'list' ? 'list' : 'grid', sort: ['manual', 'newest', 'oldest'].includes(prefs.sort) ? prefs.sort : 'manual',
+    layout: scope === 'vault' ? (prefs.layout === 'comfortable' ? 'comfortable' : 'sheet') : prefs.layout === 'list' ? 'list' : 'grid', sort: ['manual', 'newest', 'oldest', 'title-asc', 'title-desc'].includes(prefs.sort) ? prefs.sort : 'manual',
     query: '', type: 'all', selecting: false, selected: new Set(), visible: [], adding: false,
     ui: Object.fromEntries(ids.map(id => [id, $(scope + id)])) };
 }
@@ -53,6 +61,48 @@ function element(tag, className, text) {
   if (text !== undefined) el.textContent = text;
   return el;
 }
+function formatStorage(bytes) {
+  if (bytes < 1000) return bytes + ' B';
+  if (bytes < 1000000) return (bytes / 1000).toFixed(1) + ' KB';
+  if (bytes < 1000000000) return (bytes / 1000000).toFixed(1) + ' MB';
+  return (bytes / 1000000000).toFixed(2) + ' GB';
+}
+function updateVaultStorage() {
+  const status = $('vaultStorageText'), meter = $('vaultStorageMeter');
+  if (vaultStorageError || vaultBytes === null) {
+    status.textContent = vaultStorageError ? 'Storage unavailable' : 'Loading storage…';
+    meter.hidden = true; return;
+  }
+  const usage = M.storageUsage(vaultBytes, vaultCapacity());
+  status.textContent = '~' + formatStorage(usage.used) + ' used · ' + (usage.remaining === null ? 'limit not set' : '~' + formatStorage(usage.remaining) + ' left');
+  meter.hidden = usage.capacity === null;
+  meter.value = usage.percent || 0;
+  $('vaultStorage').classList.toggle('storage-full', usage.capacity !== null && usage.used >= usage.capacity);
+  $('vaultStorage').title = 'Estimated Vault data size, including encoded images and metadata. ' + (usage.capacity === null ? 'Set a budget to calculate space left.' : 'Remaining space is relative to your Vault budget, not a Firebase account quota.');
+}
+function openStorageSettings() {
+  const body = openDialog('Vault storage');
+  body.append(element('p', 'dialog-help', 'Usage estimates the Vault’s stored data, including images and metadata. Firebase’s account quota is not available to this app. Set your own Vault budget to calculate space left.'));
+  const form = element('form');
+  const label = element('label', '', 'Vault budget (MB)');
+  const input = element('input'); input.type = 'number'; input.min = '1'; input.step = 'any'; input.placeholder = 'For example, 1000';
+  input.id = 'vaultBudget'; label.htmlFor = input.id;
+  input.value = vaultCapacity() ? String(vaultCapacity() / 1000000) : '';
+  const error = element('p', 'dialog-error'); error.setAttribute('role', 'alert');
+  const save = button('Save budget'); save.type = 'submit';
+  form.append(label, input, element('p', 'dialog-help', 'This display budget is saved on this device. It does not change or enforce your Firebase storage plan. Leave blank to clear it.'), error, save);
+  form.onsubmit = e => {
+    e.preventDefault();
+    const value = input.value.trim() ? Number(input.value) * 1000000 : null;
+    if (value !== null && (!Number.isFinite(value) || value < 1000000)) { error.textContent = 'Enter at least 1 MB.'; return; }
+    try {
+      if (value === null) localStorage.removeItem('fade.vault.capacity'); else localStorage.setItem('fade.vault.capacity', String(value));
+    } catch { error.textContent = 'This browser could not save the budget.'; return; }
+    updateVaultStorage(); closeDialog();
+  };
+  body.append(form); input.focus();
+}
+$('vaultStorage').onclick = openStorageSettings;
 function button(text, action, className = '') {
   const el = element('button', className, text);
   el.type = 'button';
@@ -108,6 +158,7 @@ function purgeExpired(key) {
 function listen(view) {
   view.ref.on('value', snap => {
     const data = snap.val() || {};
+    if (view.scope === 'vault') { vaultBytes = M.storageBytes(data); vaultStorageError = false; updateVaultStorage(); }
     view.items = Object.create(null);
     for (const [key, item] of Object.entries(data)) {
       if (!M.isClip(item)) continue;
@@ -122,6 +173,7 @@ function listen(view) {
     render(view);
     tick();
   }, () => {
+    if (view.scope === 'vault') { vaultStorageError = true; updateVaultStorage(); }
     view.ui.Count.textContent = 'Could not load clips';
     view.ui.Empty.hidden = false;
     view.ui.Empty.replaceChildren(element('strong', '', 'Could not connect'), element('p', '', 'Check your connection and database access, then reload. Your existing clips have not been changed.'));
@@ -178,7 +230,18 @@ function createSection(view, group) {
   heading.append(toggle, count, menu);
   if (view.scope === 'vault') {
     const columns = element('div', 'sheet-columns');
-    ['#', 'A · Title', 'B · Content', 'C · Type', 'D · Saved', 'E · Actions'].forEach(label => columns.append(element('span', '', label)));
+    ['#', 'A · Title', 'B · Content', 'C · Type', 'D · Saved', 'E · Actions'].forEach((label, index) => {
+      const cell = element('span');
+      if (index === 1 || index === 4) {
+        const sortButton = button(label + ' ↕', () => {
+          view.sort = index === 1 ? (view.sort === 'title-asc' ? 'title-desc' : 'title-asc') : (view.sort === 'newest' ? 'oldest' : 'newest');
+          savePreferences(view); render(view);
+        });
+        sortButton.dataset.sortColumn = index === 1 ? 'title' : 'date';
+        cell.append(sortButton);
+      } else cell.textContent = label;
+      columns.append(cell);
+    });
     section.append(heading, columns, items);
   } else section.append(heading, items);
   const rec = { section, name, toggle, count, items, empty, menu };
@@ -213,18 +276,27 @@ function render(view) {
   if (view.scope === 'vault') { view.ui.Layout.textContent = view.layout === 'sheet' ? 'Comfortable rows' : 'Compact rows'; view.ui.Layout.setAttribute('aria-label', 'Toggle row density'); }
   view.ui.Sort.value = view.sort;
   const groups = [null, ...view.groups];
+  const globalSort = view.scope === 'vault' && view.sort !== 'manual';
   let sectionIndex = 2;
   for (const g of groups) {
     const id = g?.id || '';
     const rec = view.sections.get(id) || createSection(view, g);
-    const keys = view.visible.filter(k => M.groupId(view.items[k]) === id);
+    const keys = globalSort ? (id ? [] : view.visible) : view.visible.filter(k => M.groupId(view.items[k]) === id);
     const groupTotal = Object.values(view.items).filter(i => M.groupId(i) === id).length;
-    rec.name.textContent = g?.name || 'Unfiled';
+    rec.name.textContent = globalSort && !id ? 'All items' : g?.name || 'Unfiled';
     rec.section.style.setProperty('--group-color', g?.color || '#87929b');
     rec.count.textContent = filtered ? `${keys.length}/${groupTotal}` : groupTotal;
     rec.menu.setAttribute('aria-label', 'Manage group: ' + (g?.name || 'Unfiled'));
     rec.section.hidden = filtered ? keys.length === 0 : !id && total === 0 && view.groups.length === 0;
-    const collapsed = view.collapsed.has(id) && !filtered;
+    if (globalSort) { rec.section.hidden = !!id || !keys.length; rec.count.textContent = keys.length; }
+    const collapsed = view.collapsed.has(id) && !filtered && !globalSort;
+    rec.toggle.disabled = globalSort;
+    for (const control of rec.section.querySelectorAll('[data-sort-column]')) {
+      const title = control.dataset.sortColumn === 'title';
+      const direction = title ? (view.sort === 'title-asc' ? ' ↑' : view.sort === 'title-desc' ? ' ↓' : ' ↕') : (view.sort === 'oldest' ? ' ↑' : view.sort === 'newest' ? ' ↓' : ' ↕');
+      control.textContent = (title ? 'A · Title' : 'D · Saved') + direction;
+      control.setAttribute('aria-label', title ? 'Sort by title' : 'Sort by saved date');
+    }
     rec.section.classList.toggle('collapsed', collapsed);
     rec.toggle.setAttribute('aria-expanded', String(!collapsed));
     rec.items.hidden = collapsed;
