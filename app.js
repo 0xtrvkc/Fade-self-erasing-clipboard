@@ -37,7 +37,7 @@ function savePreferences(view) {
 function makeView(scope) {
   const prefs = readPreferences(scope);
   const ids = ['Board', 'Scroll', 'Search', 'Type', 'Sort', 'Layout', 'Select', 'Bulk', 'SelectionCount',
-    'SelectAll', 'BulkMove', 'BulkDelete', 'Done', 'NewGroup', 'Count', 'Empty', 'Input', 'Image', 'File', 'Destination', 'Add'];
+    'SelectAll', 'BulkShare', 'BulkMove', 'BulkDelete', 'Done', 'NewGroup', 'Count', 'Empty', 'Input', 'Image', 'File', 'Destination', 'Add'];
   return { scope, ref: null, items: {}, cards: new Map(), sections: new Map(), groups: M.groups({}, Array.isArray(prefs.groups) ? prefs.groups : []),
     collapsed: new Set(Array.isArray(prefs.collapsed) ? prefs.collapsed.filter(x => typeof x === 'string') : []),
     layout: prefs.layout === 'list' ? 'list' : 'grid', sort: ['manual', 'newest', 'oldest'].includes(prefs.sort) ? prefs.sort : 'manual',
@@ -252,6 +252,9 @@ function updateSelection(view) {
   view.ui.Select.textContent = view.selecting ? 'Selecting' : 'Select';
   view.ui.SelectionCount.textContent = view.selected.size + ' selected';
   view.ui.BulkMove.disabled = view.ui.BulkDelete.disabled = view.selected.size === 0;
+  const imageCount = getSelected(view).filter(key => view.items[key].type === 'image').length;
+  view.ui.BulkShare.disabled = imageCount === 0;
+  view.ui.BulkShare.textContent = imageCount > 1 ? `Share ${imageCount} images` : 'Share image';
   if (view.scope === 'clips') $('clipsBulkKeep').disabled = view.selected.size === 0;
   view.ui.SelectAll.textContent = view.visible.length && view.selected.size === view.visible.length ? 'Deselect all' : 'Select all';
   for (const [key, card] of view.cards) {
@@ -905,6 +908,41 @@ function downloadImage(item) {
   a.download = 'fade-image.' + extension;
   document.body.append(a); a.click(); a.remove();
 }
+
+function imageFile(item, index) {
+  const match = /^data:image\/(png|jpeg|webp|gif);base64,/i.exec(item.content);
+  if (!match) throw new Error('One of the selected images is unavailable.');
+  const extension = match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
+  const binary = atob(item.content.slice(item.content.indexOf(',') + 1));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new File([bytes], `fade-image-${index + 1}.${extension}`, { type: `image/${match[1].toLowerCase()}` });
+}
+
+async function shareSelectedImages(view) {
+  const items = getSelected(view).map(key => view.items[key]).filter(item => item.type === 'image');
+  if (!items.length) { toast('Select at least one image to share.'); return; }
+  let files;
+  try { files = items.map(imageFile); }
+  catch (err) { toast(err.message); return; }
+
+  if (navigator.share && (!navigator.canShare || navigator.canShare({ files }))) {
+    try {
+      await navigator.share({ files, title: files.length === 1 ? 'Image from Fade' : `${files.length} images from Fade` });
+      announce(`${files.length} image${files.length === 1 ? '' : 's'} shared.`);
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+    }
+  }
+
+  if (items.length === 1) {
+    downloadImage(items[0]);
+    toast('Sharing is unavailable in this browser. The image was downloaded instead.');
+    return;
+  }
+  toast('This browser cannot share multiple images. Download them one at a time from each image card.', null, 'Undo', 9000);
+}
 async function copyItem(item, btn) {
   try {
     if (item.type === 'image') {
@@ -1129,6 +1167,7 @@ function bindView(view) {
     view.selected = view.selected.size === view.visible.length ? new Set() : new Set(view.visible); updateSelection(view);
   };
   view.ui.BulkMove.onclick = () => openItemDialog(view, getSelected(view));
+  view.ui.BulkShare.onclick = () => shareSelectedImages(view);
   view.ui.BulkDelete.onclick = () => confirmDelete(view, getSelected(view));
   if (view.scope === 'clips') $('clipsBulkKeep').onclick = async () => {
     const btn = $('clipsBulkKeep'); btn.disabled = true;
@@ -1146,8 +1185,12 @@ function bindView(view) {
   });
   view.ui.Add.onclick = () => submitText(view);
   view.ui.Image.onclick = () => view.ui.File.click();
-  view.ui.File.onchange = () => {
-    const file = view.ui.File.files[0]; if (file) processImage(view, file); view.ui.File.value = '';
+  view.ui.File.onchange = async () => {
+    const files = Array.from(view.ui.File.files || []);
+    const destinationId = view.ui.Destination.value;
+    view.ui.File.value = '';
+    if (!files.length) return;
+    for (const file of files) await processImage(view, file, destinationId);
   };
   render(view);
 }
