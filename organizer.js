@@ -13,6 +13,11 @@
   ];
   const finite = value => typeof value === 'number' && Number.isFinite(value);
   const color = value => COLORS.some(c => c[1] === value) ? value : '';
+  function imageContents(item) {
+    if (item?.type !== 'image') return [];
+    const values = Array.isArray(item.images) && item.images.length ? item.images : [item.content];
+    return values.filter(value => typeof value === 'string' && /^data:image\/(jpeg|png|webp|gif);base64,/i.test(value));
+  }
   function isClip(item) {
     return !!item && ['text', 'link', 'image'].includes(item.type) && typeof item.content === 'string';
   }
@@ -97,6 +102,6 @@
     try { path = decodeURIComponent(path); } catch { /* Keep the valid encoded path. */ }
     return url.hostname.replace(/^www\./i, '') + path;
   }
-  return { TTL, COLORS, color, isClip, timestamp, expired, group, groupId, groups, rank,
+  return { imageContents, TTL, COLORS, color, isClip, timestamp, expired, group, groupId, groups, rank,
     ordered, matches, defaultColor, movePlan, patchCurrent, safeLink, linkPreview };
 });

@@ -40,7 +40,7 @@ function makeView(scope) {
     'SelectAll', 'BulkShare', 'BulkMove', 'BulkDelete', 'Done', 'NewGroup', 'Count', 'Empty', 'Input', 'Image', 'File', 'Destination', 'Add'];
   return { scope, ref: null, items: {}, cards: new Map(), sections: new Map(), groups: M.groups({}, Array.isArray(prefs.groups) ? prefs.groups : []),
     collapsed: new Set(Array.isArray(prefs.collapsed) ? prefs.collapsed.filter(x => typeof x === 'string') : []),
-    layout: prefs.layout === 'list' ? 'list' : 'grid', sort: ['manual', 'newest', 'oldest'].includes(prefs.sort) ? prefs.sort : 'manual',
+    layout: scope === 'vault' ? (prefs.layout === 'comfortable' ? 'comfortable' : 'sheet') : prefs.layout === 'list' ? 'list' : 'grid', sort: ['manual', 'newest', 'oldest'].includes(prefs.sort) ? prefs.sort : 'manual',
     query: '', type: 'all', selecting: false, selected: new Set(), visible: [], adding: false,
     ui: Object.fromEntries(ids.map(id => [id, $(scope + id)])) };
 }
@@ -77,7 +77,8 @@ function requireConnection() {
   if (!db || !connected) throw new Error('Waiting for a connection. Your draft is still here.');
 }
 function currentGroup(view, id) { return view.groups.find(g => g.id === id) || null; }
-function clipLabel(item) { return (item.title || (item.type === 'image' ? 'Image' : item.content)).slice(0, 90); }
+function imageContents(item) { return M.imageContents(item); }
+function clipLabel(item) { return (item.title || (item.type === 'image' ? `${imageContents(item).length} image(s)` : item.content)).slice(0, 90); }
 function getSelected(view) { return [...view.selected].filter(key => !!view.items[key]); }
 function manualMode(view) { return view.sort === 'manual' && !view.query && view.type === 'all'; }
 
@@ -175,7 +176,11 @@ function createSection(view, group) {
   const empty = element('p', 'drop-empty', 'Drop clips here, or choose this group when adding a clip.');
   items.append(empty);
   heading.append(toggle, count, menu);
-  section.append(heading, items);
+  if (view.scope === 'vault') {
+    const columns = element('div', 'sheet-columns');
+    ['#', 'A · Title', 'B · Content', 'C · Type', 'D · Saved', 'E · Actions'].forEach(label => columns.append(element('span', '', label)));
+    section.append(heading, columns, items);
+  } else section.append(heading, items);
   const rec = { section, name, toggle, count, items, empty, menu };
   view.sections.set(id, rec);
   return rec;
@@ -205,6 +210,7 @@ function render(view) {
   view.ui.Board.dataset.layout = view.layout;
   view.ui.Layout.textContent = view.layout === 'grid' ? 'List' : 'Grid';
   view.ui.Layout.setAttribute('aria-label', 'Use ' + (view.layout === 'grid' ? 'list' : 'grid') + ' layout');
+  if (view.scope === 'vault') { view.ui.Layout.textContent = view.layout === 'sheet' ? 'Comfortable rows' : 'Compact rows'; view.ui.Layout.setAttribute('aria-label', 'Toggle row density'); }
   view.ui.Sort.value = view.sort;
   const groups = [null, ...view.groups];
   let sectionIndex = 2;
@@ -229,6 +235,7 @@ function render(view) {
       if (!card) { card = createCard(view, key, view.items[key]); view.cards.set(key, card); }
       updateCard(view, card, view.items[key]);
       card.el.hidden = false;
+      if (card.rowNumber) card.rowNumber.textContent = String(view.visible.indexOf(key) + 1);
       place(rec.items, card.el, index);
     });
   }
@@ -252,13 +259,13 @@ function updateSelection(view) {
   view.ui.Select.textContent = view.selecting ? 'Selecting' : 'Select';
   view.ui.SelectionCount.textContent = view.selected.size + ' selected';
   view.ui.BulkMove.disabled = view.ui.BulkDelete.disabled = view.selected.size === 0;
-  const imageCount = getSelected(view).filter(key => view.items[key].type === 'image').length;
+  const imageCount = getSelected(view).reduce((sum, key) => sum + imageContents(view.items[key]).length, 0);
   view.ui.BulkShare.disabled = imageCount === 0;
   view.ui.BulkShare.textContent = imageCount > 1 ? `Share ${imageCount} images` : 'Share image';
   if (view.scope === 'clips') $('clipsBulkKeep').disabled = view.selected.size === 0;
   view.ui.SelectAll.textContent = view.visible.length && view.selected.size === view.visible.length ? 'Deselect all' : 'Select all';
   for (const [key, card] of view.cards) {
-    card.selector.hidden = !view.selecting;
+    card.selector.hidden = view.scope !== 'vault' && !view.selecting;
     card.checkbox.checked = view.selected.has(key);
     card.el.classList.toggle('selected', view.selected.has(key));
   }
@@ -301,6 +308,7 @@ function createCard(view, key, item) {
   rec.checkbox.setAttribute('aria-label', 'Select clip: ' + clipLabel(item));
   rec.checkbox.onchange = () => {
     if (rec.checkbox.checked) view.selected.add(key); else view.selected.delete(key);
+    if (rec.checkbox.checked) view.selecting = true;
     updateSelection(view);
   };
   rec.selector.append(rec.checkbox);
@@ -318,7 +326,7 @@ function createCard(view, key, item) {
   rec.content.id = view.scope + '-content-' + key;
   rec.expand.setAttribute('aria-controls', rec.content.id);
   const actions = element('div', 'clip-actions');
-  actions.append(button('Copy', e => copyItem(rec.item, e.currentTarget)));
+  actions.append(button(item.type === 'image' && imageContents(item).length > 1 ? 'Open images' : 'Copy', e => imageContents(rec.item).length > 1 ? openImages(rec.item) : copyItem(rec.item, e.currentTarget)));
   if (view.scope === 'clips') actions.append(button('Keep', async e => {
     const btn = e.currentTarget; btn.disabled = true;
     try { await keepItems(view, [key]); } catch (err) { toast(err.message); }
@@ -327,7 +335,13 @@ function createCard(view, key, item) {
   const more = button('•••', () => openItemDialog(view, [key]), 'more-button');
   more.setAttribute('aria-label', 'Organize clip: ' + clipLabel(item));
   actions.append(more);
-  el.append(top, rec.header.el, rec.content, rec.expand, actions);
+  if (view.scope === 'vault') {
+    rec.rowNumber = element('span', 'row-number');
+    const row = element('div', 'sheet-index'); row.append(rec.rowNumber, rec.selector, rec.handle);
+    const preview = element('div', 'sheet-preview'); preview.append(rec.content, rec.expand);
+    const type = element('div', 'sheet-type'); type.append(rec.tag, rec.pin);
+    el.append(row, rec.header.el, preview, type, rec.time, actions);
+  } else el.append(top, rec.header.el, rec.content, rec.expand, actions);
   if (view.scope === 'clips') {
     const track = element('div', 'progress-track');
     rec.progress = element('div', 'progress-fill');
@@ -338,9 +352,9 @@ function createCard(view, key, item) {
   return rec;
 }
 function updateCard(view, rec, item) {
-  const contentChanged = !rec.item || item.type !== rec.item.type || item.content !== rec.item.content;
+  const contentChanged = !rec.item || item.type !== rec.item.type || item.content !== rec.item.content || JSON.stringify(item.images) !== JSON.stringify(rec.item.images);
   rec.item = item;
-  rec.tag.textContent = item.type;
+  rec.tag.textContent = item.type === 'image' && imageContents(item).length > 1 ? imageContents(item).length + ' images' : item.type;
   rec.el.style.setProperty('--card-color', M.color(item.color) || M.defaultColor(rec.key));
   rec.el.setAttribute('aria-label', clipLabel(item));
   rec.handle.setAttribute('aria-label', 'Move clip: ' + clipLabel(item));
@@ -370,7 +384,26 @@ function checkExpand(rec) {
   const thumbnail = image && image.clientHeight + 3 < fullImageHeight;
   rec.expand.hidden = !rec.content.classList.contains('expanded') && rec.content.scrollHeight <= rec.content.clientHeight + 3 && !thumbnail;
 }
+function openImages(item) {
+  const body = openDialog(item.title || 'Image collection');
+  body.append(button('Share all images', () => shareImages(imageContents(item).map(content => ({type:'image', content})))));
+  imageContents(item).forEach((content, index) => {
+    const block = element('div', 'gallery-item');
+    const img = element('img'); img.src = content; img.alt = 'Image ' + (index + 1);
+    block.append(img, button('Copy image ' + (index + 1), e => copyItem({type:'image', content}, e.currentTarget)), button('Download', () => downloadImage({content})));
+    body.append(block);
+  });
+}
 function renderContent(el, item) {
+  if (imageContents(item).length > 1) {
+    const gallery = button('', () => openImages(item), 'image-collection');
+    gallery.setAttribute('aria-label', 'Open all ' + imageContents(item).length + ' images');
+    imageContents(item).slice(0, 4).forEach((content, index) => {
+      const img = element('img'); img.src = content; img.alt = 'Image ' + (index + 1); img.loading = 'lazy'; gallery.append(img);
+    });
+    el.append(gallery, element('span', 'collection-count', imageContents(item).length + ' images · Open collection'));
+    return;
+  }
   if (item.type === 'image' && /^data:image\/(jpeg|png|webp|gif);base64,/i.test(item.content)) {
     const img = document.createElement('img');
     img.src = item.content; img.alt = item.title || 'Clipboard image'; img.loading = 'lazy';
@@ -920,7 +953,10 @@ function imageFile(item, index) {
 }
 
 async function shareSelectedImages(view) {
-  const items = getSelected(view).map(key => view.items[key]).filter(item => item.type === 'image');
+  const items = getSelected(view).flatMap(key => imageContents(view.items[key]).map(content => ({type:'image', content})));
+  return shareImages(items);
+}
+async function shareImages(items) {
   if (!items.length) { toast('Select at least one image to share.'); return; }
   let files;
   try { files = items.map(imageFile); }
@@ -967,12 +1003,13 @@ async function copyItem(item, btn) {
   }
 }
 function looksLikeUrl(text) { return /^(https?:\/\/|www\.)\S+$/i.test(text.trim()); }
-async function addItem(view, type, content, destinationId = view.ui.Destination.value) {
+async function addItem(view, type, content, destinationId = view.ui.Destination.value, images = null) {
   requireConnection();
   const ref = view.ref.push();
   const group = currentGroup(view, destinationId);
   const item = { type, content, color: group?.color || M.defaultColor(ref.key), order: -now(), revision: 0,
     [view.scope === 'vault' ? 'keptAt' : 'createdAt']: firebase.database.ServerValue.TIMESTAMP };
+  if (images?.length > 1) item.images = images;
   if (group) item.group = group;
   await ref.set(item);
   view.collapsed.delete(group?.id || ''); savePreferences(view); render(view);
@@ -998,20 +1035,23 @@ async function submitText(view) {
   } catch (err) { toast(err.message || 'Could not add this clip. Your draft is still here.'); }
   finally { view.adding = false; updateComposer(view); }
 }
-async function processImage(view, file, destinationId = view.ui.Destination.value) {
+async function processImages(view, files, destinationId = view.ui.Destination.value) {
   try {
     requireConnection();
-    if (!/^image\/(png|jpeg|webp|gif)$/i.test(file.type)) throw new Error('Choose a JPEG, PNG, WebP, or GIF image.');
-    if (file.size > 20 * 1024 * 1024) throw new Error('Choose an image smaller than 20 MB.');
-    const content = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read this image.'));
-      reader.onerror = () => reject(new Error('Could not read this image.'));
-      reader.readAsDataURL(file);
-    });
-    await addItem(view, 'image', content, destinationId);
-    toast('Image added.');
-  } catch (err) { toast(err.message || 'Could not add the image. Please try again.'); }
+    if (!files.length) return;
+    if (files.reduce((sum, file) => sum + file.size, 0) > 20 * 1024 * 1024) throw new Error('Choose images totaling less than 20 MB.');
+    const images = await Promise.all(files.map(file => {
+      if (!/^image\/(png|jpeg|webp|gif)$/i.test(file.type)) throw new Error('Choose JPEG, PNG, WebP, or GIF images.');
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read an image.'));
+        reader.onerror = () => reject(new Error('Could not read an image.'));
+        reader.readAsDataURL(file);
+      });
+    }));
+    await addItem(view, 'image', images[0], destinationId, images);
+    toast(images.length > 1 ? images.length + ' images added in one clip.' : 'Image added.');
+  } catch (err) { toast(err.message || 'Could not add images. Please try again.'); }
 }
 
 let keyBuffer = '', lastKeyAt = 0, keyBufferTarget = null;
@@ -1105,7 +1145,7 @@ document.addEventListener('paste', e => {
   if (images.length) {
     e.preventDefault();
     const destinationId = view.ui.Destination.value;
-    for (const file of images) processImage(view, file, destinationId);
+    processImages(view, images, destinationId);
     return;
   }
   if (!editor) {
@@ -1147,7 +1187,7 @@ document.addEventListener('drop', e => {
   if (!files.length) { toast('Drop a JPEG, PNG, WebP, or GIF image.'); return; }
   const view = scopes[activeScope];
   const destinationId = view.ui.Destination.value;
-  for (const file of files) processImage(view, file, destinationId);
+  processImages(view, files, destinationId);
 });
 window.addEventListener('blur', clearImageDropState);
 
@@ -1157,7 +1197,7 @@ function bindView(view) {
   view.ui.Type.onchange = () => { view.type = view.ui.Type.value; view.selected.clear(); render(view); };
   view.ui.Sort.onchange = () => { view.sort = view.ui.Sort.value; savePreferences(view); render(view); };
   view.ui.Layout.onclick = () => {
-    view.layout = view.layout === 'grid' ? 'list' : 'grid'; savePreferences(view); render(view);
+    view.layout = view.scope === 'vault' ? (view.layout === 'sheet' ? 'comfortable' : 'sheet') : view.layout === 'grid' ? 'list' : 'grid'; savePreferences(view); render(view);
     requestAnimationFrame(() => { for (const rec of view.cards.values()) checkExpand(rec); });
   };
   const selectionMode = value => { view.selecting = value; if (!value) view.selected.clear(); updateSelection(view); };
@@ -1190,7 +1230,7 @@ function bindView(view) {
     const destinationId = view.ui.Destination.value;
     view.ui.File.value = '';
     if (!files.length) return;
-    for (const file of files) await processImage(view, file, destinationId);
+    await processImages(view, files, destinationId);
   };
   render(view);
 }

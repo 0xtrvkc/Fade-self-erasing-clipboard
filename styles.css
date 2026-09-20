@@ -441,3 +441,60 @@ body.image-drop-ready::after {
     scroll-behavior: auto !important;
   }
 }
+
+/* Image batches stay together, with originals available in the collection viewer. */
+.image-collection { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; width: 100%; padding: 0; border: 0; }
+.clip-content .image-collection img { width: 100%; height: 94px; object-fit: cover; }
+.collection-count { display: block; font-size: 11px; margin-top: 6px; }
+.gallery-item { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 16px; }
+.gallery-item img { display: block; max-width: 100%; max-height: 50vh; object-fit: contain; margin-bottom: 8px; }
+.gallery-item button { margin-right: 8px; }
+
+/* Vault worksheet: shared column tracks keep every group aligned. */
+#vaultScroll { overflow: auto; }
+#vaultBoard { --sheet-columns: 86px minmax(180px, 1.1fr) minmax(260px, 2fr) 100px 140px 164px; min-width: 960px; width: 100%; max-width: none; padding: 18px 24px 36px; gap: 20px; }
+#vault .group { border: 1px solid var(--line); border-radius: 6px; }
+#vault .group-heading { padding: 4px 12px; margin: 0; background: #0d1519; }
+#vault .sheet-columns { display: grid; grid-template-columns: var(--sheet-columns); position: sticky; top: 0; z-index: 3; background: #13262b; color: var(--muted); border-bottom: 1px solid var(--line); font-size: 11px; }
+#vault .sheet-columns span { padding: 12px 10px; border-right: 1px solid var(--line); }
+#vault .group.collapsed .sheet-columns { display: none; }
+#vault .group-items { display: block; min-height: 0; }
+#vault .clip { display: grid; grid-template-columns: var(--sheet-columns); align-items: stretch; padding: 0; border: 0; border-bottom: 1px solid #29444b; border-radius: 0; box-shadow: none; }
+#vault .clip:last-child { border-bottom: 0; }
+#vault .clip:nth-of-type(even) { background: #0d171d; }
+#vault .clip:hover { background: #14282e; }
+#vault .clip.selected { background: #173437; outline: 1px solid var(--cyan); outline-offset: -1px; }
+#vault .clip > * { min-width: 0; margin: 0; padding: 10px; border-right: 1px solid #29444b; }
+#vault .clip > * { grid-row: 1; grid-column: auto; }
+#vault .clip > .sheet-index { grid-column: 1; }
+#vault .clip > .vheader { grid-column: 2; }
+#vault .clip > .sheet-preview { grid-column: 3; }
+#vault .clip > .sheet-type { grid-column: 4; }
+#vault .clip > .kept-date { grid-column: 5; }
+#vault .clip > .clip-actions { grid-column: 6; }
+#vault .sheet-index { display: flex; flex-wrap: wrap; align-content: center; align-items: center; justify-content: center; gap: 0; border-left: 3px solid var(--card-color); padding: 4px; }
+#vault .row-number { font-size: 11px; color: var(--muted); width: 100%; text-align: center; }
+#vault .sheet-index .clip-selector { min-width: 32px; }
+#vault .sheet-index .drag-handle { width: 28px; min-width: 28px; }
+#vault .vheader { display: flex; align-items: center; }
+#vault .vheader-button { border: 0 !important; padding: 4px 0; align-items: center; }
+#vault .vheader-text { font-size: 14px; }
+#vault .vheader-edit { display: none; }
+#vault .vheader-editor { width: 100%; }
+#vault .sheet-preview { align-self: stretch; }
+#vault .clip-content { max-height: 52px; font-size: 13px; }
+#vault .sheet-type { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+#vault .kept-date { display: flex; align-items: center; font-size: 11px; }
+#vault .clip-actions { display: flex; align-items: center; flex-wrap: nowrap; border-top: 0; gap: 5px; }
+#vault .clip-actions button { padding: 5px 8px; font-size: 12px; }
+#vault .clip-actions .more-button { flex-basis: 36px; }
+#vault .expand-button { font-size: 11px; margin: 2px 0 0; padding: 0; min-height: 26px; }
+#vault .clip-content .image-collection { display: flex; width: auto; gap: 4px; min-height: 0; }
+#vault .clip-content .image-collection img { width: 44px; height: 34px; object-fit: cover; }
+#vault .collection-count { margin-top: 0; font-size: 10px; }
+#vault .clip-content > img { height: 52px; }
+#vault .clip-content.expanded > img { height: auto; max-height: 400px; }
+#vaultBoard[data-layout=comfortable] .clip > * { padding-block: 18px; }
+#vaultBoard[data-layout=comfortable] .clip-content { max-height: 110px; }
+#vault .drop-empty { border: 0; border-radius: 0; }
+@media (max-width: 700px) { #vaultBoard { padding-inline: 12px; } }
