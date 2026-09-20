@@ -276,21 +276,18 @@ function render(view) {
   if (view.scope === 'vault') { view.ui.Layout.textContent = view.layout === 'sheet' ? 'Comfortable rows' : 'Compact rows'; view.ui.Layout.setAttribute('aria-label', 'Toggle row density'); }
   view.ui.Sort.value = view.sort;
   const groups = [null, ...view.groups];
-  const globalSort = view.scope === 'vault' && view.sort !== 'manual';
   let sectionIndex = 2;
   for (const g of groups) {
     const id = g?.id || '';
     const rec = view.sections.get(id) || createSection(view, g);
-    const keys = globalSort ? (id ? [] : view.visible) : view.visible.filter(k => M.groupId(view.items[k]) === id);
+    const keys = view.visible.filter(k => M.groupId(view.items[k]) === id);
     const groupTotal = Object.values(view.items).filter(i => M.groupId(i) === id).length;
-    rec.name.textContent = globalSort && !id ? 'All items' : g?.name || 'Unfiled';
+    rec.name.textContent = g?.name || 'Unfiled';
     rec.section.style.setProperty('--group-color', g?.color || '#87929b');
     rec.count.textContent = filtered ? `${keys.length}/${groupTotal}` : groupTotal;
     rec.menu.setAttribute('aria-label', 'Manage group: ' + (g?.name || 'Unfiled'));
     rec.section.hidden = filtered ? keys.length === 0 : !id && total === 0 && view.groups.length === 0;
-    if (globalSort) { rec.section.hidden = !!id || !keys.length; rec.count.textContent = keys.length; }
-    const collapsed = view.collapsed.has(id) && !filtered && !globalSort;
-    rec.toggle.disabled = globalSort;
+    const collapsed = view.collapsed.has(id) && !filtered;
     for (const control of rec.section.querySelectorAll('[data-sort-column]')) {
       const title = control.dataset.sortColumn === 'title';
       const direction = title ? (view.sort === 'title-asc' ? ' ↑' : view.sort === 'title-desc' ? ' ↓' : ' ↕') : (view.sort === 'oldest' ? ' ↑' : view.sort === 'newest' ? ' ↓' : ' ↕');
@@ -307,7 +304,7 @@ function render(view) {
       if (!card) { card = createCard(view, key, view.items[key]); view.cards.set(key, card); }
       updateCard(view, card, view.items[key]);
       card.el.hidden = false;
-      if (card.rowNumber) card.rowNumber.textContent = String(view.visible.indexOf(key) + 1);
+      if (card.rowNumber) card.rowNumber.textContent = String(index + 1);
       place(rec.items, card.el, index);
     });
   }
