@@ -306,16 +306,15 @@ function cancelKeepHold(warn = false) {
 function bindKeepHold(btn, save, after = () => {}) {
   let consumed = false, busy = false;
   btn.classList.add('keep-hold');
-  btn.title = 'Press and hold for 3 seconds to keep';
-  btn.setAttribute('aria-label', 'Keep: press and hold for 3 seconds');
+  btn.title = 'Keep';
+  btn.setAttribute('aria-label', 'Keep');
   function start(kind, id) {
     if (busy || btn.disabled || $('keepWarning').open) return;
     cancelKeepHold();
     consumed = true;
     const hold = {btn, kind, id, timer: null};
     activeKeepHold = hold;
-    btn.textContent = 'Hold 3s…';
-    btn.classList.add('keep-holding');
+    // Keep the gesture undisclosed: no countdown, hint, or progress fill.
     hold.timer = setTimeout(async () => {
       if (activeKeepHold !== hold) return;
       if (!btn.isConnected || btn.disabled || document.hidden) { cancelKeepHold(); return; }
