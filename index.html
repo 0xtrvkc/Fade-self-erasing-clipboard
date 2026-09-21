@@ -34,7 +34,7 @@
     </div>
     <div class="toolbar" aria-label="Clipboard controls">
       <label class="search"><span class="sr-only">Search clips</span><input id="clipsSearch" type="search" placeholder="Search clips, titles, groups…" autocomplete="off"></label>
-      <button class="new-group" id="clipsNewGroup" type="button">+ Group</button>
+      <button class="new-group" id="clipsNewGroup" type="button" hidden>+ Group</button>
       <select id="clipsType" aria-label="Filter by content type"><option value="all">All types</option><option value="text">Text</option><option value="link">Links</option><option value="image">Images</option></select>
       <select id="clipsSort" aria-label="Sort clips"><option value="manual">Your order</option><option value="newest">Newest</option><option value="oldest">Oldest</option></select>
       <button class="view-toggle" id="clipsLayout" type="button" aria-label="Use list layout">List</button>
@@ -60,7 +60,7 @@
     <div class="composer-row">
       <button class="image-button" id="clipsImage" type="button" aria-label="Add image" title="Add image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg></button>
       <input id="clipsFile" type="file" accept="image/*" multiple hidden>
-      <label for="clipsDestination">Add to</label><select id="clipsDestination" aria-label="Group for new clips"><option value="">Unfiled</option></select>
+      <select id="clipsDestination" aria-label="Group for new clips" hidden><option value="">Unfiled</option></select>
       <span class="composer-hint">Enter to add · Shift+Enter for a new line</span>
       <button class="primary" id="clipsAdd" type="button" disabled>Add clip</button>
     </div>
