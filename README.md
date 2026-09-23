@@ -89,6 +89,14 @@ The client limits text to 100,000 characters and images to five files of 1 MB ea
 
 Firebase Authentication and Realtime Database Rules restrict reads and writes to `users/<auth.uid>`. The scheduled job uses Firebase Admin privileges and only reads registered accounts to remove temporary clips after expiry. A browser-side logout clears rendered clips from the page. Sign out on shared devices.
 
+### Owner and one-item vault
+
+The owner UID in `database.rules.json` and `app.js` is `SagJ5qWZwEZWBijqebsWCPRBLHU2`. **Verify the complete UID against your Firebase Console → Authentication → Users before publishing these files.** If it differs, replace it in both files. Firebase rules are the authority; the client UID only controls the interface and the key used for saving.
+
+The owner can keep unlimited items. Every other Google account can still use temporary clips, but can keep only one vault item at a time. Free users' item is stored at `users/<uid>/kept/one`; the rules reject writes at every other vault key. Delete that item to free the slot. The limit is per Google account, not one lifetime paste, and does not stop people from creating multiple Google accounts or using temporary clips. Google sign-in remains open to all Google accounts.
+
+On the Spark plan, deploy the updated rules without Functions: `firebase deploy --project fade-self-erasing-clipboard --only database`. Alternatively paste `database.rules.json` into Realtime Database → Rules and publish. Pushing to GitHub only updates the app; **it does not publish Firebase rules**. Publish the rules and app files together, then test that the owner can add two vault items and a different Google account is stopped at one. Existing nonowner vault items created at other keys before this change remain readable, but cannot be changed by that account until an administrator migrates them to the `one` key.
+
 ## Development checks
 
 Organization rules are in `organizer.js`; browser interaction and Firebase integration are in `app.js`; styling is in `styles.css`.

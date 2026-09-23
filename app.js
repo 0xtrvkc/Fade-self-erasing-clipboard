@@ -14,6 +14,12 @@ const firebaseConfig = {
 
 const M = FadeOrganizer;
 const MAX_HEADER_LENGTH = 160;
+// This UID must match the owner UID in database.rules.json. Client checks are only UX;
+// Firebase rules enforce the limit even when someone calls the database directly.
+const OWNER_UID = 'SagJ5qWZwEZWBijqebsWCPRBLHU2';
+const FREE_VAULT_KEY = 'one';
+const freeVaultFull = () => currentUid !== OWNER_UID && Object.keys(scopes.vault.items).length > 0;
+const freeVaultMessage = 'Your free vault holds one item. Delete it before saving another.';
 // Optional user-defined Vault budget; never inferred from the Firebase plan.
 const VAULT_CAPACITY_BYTES = null;
 let vaultBytes = null;
@@ -965,15 +971,20 @@ function openGroupDialog(view, group = null) {
 
 async function keepItems(view, keys) {
   requireConnection();
+  if (freeVaultFull()) throw new Error(freeVaultMessage);
   let count = 0, changed = 0;
   for (const key of keys) {
     const snap = await view.ref.child(key).once('value');
     const item = snap.val();
     if (!M.isClip(item) || M.expired(item, view.scope, now())) continue;
     const kept = { ...item, keptAt: firebase.database.ServerValue.TIMESTAMP, order: -now() };
-    const result = await scopes.vault.ref.child(key).transaction(current => current === null ? kept : undefined, undefined, false);
+    const vaultKey = currentUid === OWNER_UID ? key : FREE_VAULT_KEY;
+    const result = await scopes.vault.ref.child(vaultKey).transaction(current => current === null ? kept : undefined, undefined, false);
     // A prior attempt may have kept a different revision. Never replace it or erase the source.
-    if (!result.committed) { changed++; continue; }
+    if (!result.committed) {
+      if (currentUid !== OWNER_UID) throw new Error(freeVaultMessage);
+      changed++; continue;
+    }
     const removed = await view.ref.child(key).transaction(current => {
       if (!M.isClip(current)) return;
       if ((Number(current.revision) || 0) !== (Number(item.revision) || 0) || current.content !== item.content) return;
@@ -981,6 +992,7 @@ async function keepItems(view, keys) {
     }, undefined, false);
     count++;
     if (!removed.committed) changed++;
+    if (currentUid !== OWNER_UID) break;
   }
   if (count) toast(`${count} clip${count === 1 ? '' : 's'} kept in the vault.${changed ? ' Changed source clips were left in place.' : ''}`);
   else toast(changed ? 'Already kept or changed on another device. Source clips were left in place.' : 'These clips already expired or were removed.');
@@ -1201,15 +1213,19 @@ async function copyItem(item, btn) {
 function looksLikeUrl(text) { return /^(https?:\/\/|www\.)\S+$/i.test(text.trim()); }
 async function addItem(view, type, content, destinationId = view.ui.Destination.value, images = null) {
   requireConnection();
+  if (view.scope === 'vault' && freeVaultFull()) throw new Error(freeVaultMessage);
   if (typeof content !== 'string' || (type === 'image' ? content.length > 1500000 : content.length > 100000)) throw new Error('Clip is too large. Use a smaller image or shorter text.');
   if (images && (images.length > 5 || images.some(image => image.length > 1500000))) throw new Error('Choose up to five images, each under 1 MB.');
-  const ref = view.ref.push();
+  const ref = view.scope === 'vault' && currentUid !== OWNER_UID ? view.ref.child(FREE_VAULT_KEY) : view.ref.push();
   const group = currentGroup(view, destinationId);
   const item = { type, content, color: group?.color || M.defaultColor(ref.key), order: -now(), revision: 0,
     [view.scope === 'vault' ? 'keptAt' : 'createdAt']: firebase.database.ServerValue.TIMESTAMP };
   if (images?.length > 1) item.images = images;
   if (group) item.group = group;
-  await ref.set(item);
+  if (view.scope === 'vault' && currentUid !== OWNER_UID) {
+    const result = await ref.transaction(current => current === null ? item : undefined, undefined, false);
+    if (!result.committed) throw new Error(freeVaultMessage);
+  } else await ref.set(item);
   view.collapsed.delete(group?.id || ''); savePreferences(view); render(view);
   announce(view.scope === 'vault' ? 'Added to the vault.' : 'Clip added. It will expire in 10 minutes.');
   if (view.query || view.type !== 'all') toast('Clip added. Clear your filters to see all clips.');

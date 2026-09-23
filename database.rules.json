@@ -73,7 +73,7 @@
         },
         "kept": {
           "$clipId": {
-            ".write": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid && ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' || $clipId === 'one')",
             ".validate": "newData.hasChildren(['type', 'content', 'keptAt'])",
             "type": {
               ".validate": "newData.isString() && (newData.val() === 'text' || newData.val() === 'link' || newData.val() === 'image')"
