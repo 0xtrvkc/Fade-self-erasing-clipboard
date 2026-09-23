@@ -17,10 +17,14 @@ const MAX_HEADER_LENGTH = 160;
 // This UID must match the owner UID in database.rules.json. Client checks are only UX;
 // Firebase rules enforce the limit even when someone calls the database directly.
 const OWNER_UID = 'SagJ5qWZwEZWBijqebsWCPRBLHU2';
+const GIRLFRIEND_EMAIL = 'usa.prasoblarp@gmail.com';
 const FREE_CLIP_KEY = 'one';
 const owner = () => currentUid === OWNER_UID;
-const freeClipFull = () => !owner() && Object.keys(scopes.clips.items).length > 0;
+let girlfriend = false;
+const freeClipFull = () => !owner() && !girlfriend && Object.keys(scopes.clips.items).length > 0;
 const freeClipMessage = 'You can add one temporary clip at a time. Delete it or wait for it to expire before adding another.';
+const pinkColor = key => M.PINK_COLORS[[...String(key)].reduce((sum, char) => sum + char.charCodeAt(0), 0) % M.PINK_COLORS.length][1];
+const canEdit = item => !girlfriend || item?.authorEmail === GIRLFRIEND_EMAIL;
 // Optional user-defined Vault budget; never inferred from the Firebase plan.
 const VAULT_CAPACITY_BYTES = null;
 let vaultBytes = null;
@@ -142,6 +146,7 @@ function manualMode(view) { return view.sort === 'manual' && !view.query && view
 
 async function patchItem(view, key, patch) {
   requireConnection();
+  if (girlfriend && !canEdit(view.items[key])) throw new Error('You can copy this clip, but only its creator can edit it.');
   const result = await view.ref.child(key).transaction(current => M.patchCurrent(current, patch, view.scope, now()), undefined, false);
   if (!result.committed) throw new Error('This clip expired or was removed on another device.');
   return result.snapshot.val();
@@ -155,7 +160,8 @@ async function applyPatches(view, patches) {
     throw new Error(`${results.length - failed.length} of ${results.length} changes saved. Some clips changed or could not sync; please try again.`);
   }
 }
-function purgeExpired(key) {
+function purgeExpired(key, item = scopes.clips.items[key]) {
+  if (girlfriend && !canEdit(item)) return;
   expiryQueue.add(key);
   if (!connected || pendingExpiry.has(key)) return;
   pendingExpiry.add(key);
@@ -172,7 +178,7 @@ function listen(view) {
     view.items = Object.create(null);
     for (const [key, item] of Object.entries(data)) {
       if (!M.isClip(item)) continue;
-      if (M.expired(item, view.scope, now())) { purgeExpired(key); continue; }
+      if (M.expired(item, view.scope, now())) { purgeExpired(key, item); continue; }
       if (view.scope === 'clips') expiryQueue.delete(key);
       view.items[key] = item;
     }
@@ -200,7 +206,11 @@ function initFirebase() {
       stopSession();
       if (!user) { $('signIn').hidden = false; $('signInButton').disabled = false; $('signInButton').textContent = 'Continue with Google'; return; }
       currentUid = user.uid;
+      girlfriend = user.emailVerified && user.email?.toLowerCase() === GIRLFRIEND_EMAIL;
+      document.body.classList.toggle('girlfriend-theme', girlfriend);
       $('clipsBulkKeep').hidden = !owner();
+      $('clipsNewGroup').hidden = girlfriend;
+      $('clipsSelect').hidden = girlfriend;
       try { await db.ref(`accounts/${user.uid}`).set(true); }
       catch (err) { $('signInError').textContent = 'Could not set up your private workspace. Deploy the database rules and retry.'; $('signInButton').disabled = false; $('signInButton').textContent = 'Retry setup'; return; }
       if (currentUid !== user.uid) return;
@@ -210,7 +220,8 @@ function initFirebase() {
         view.collapsed = new Set(Array.isArray(prefs.collapsed) ? prefs.collapsed.filter(x => typeof x === 'string') : []);
         view.layout = view.scope === 'vault' ? (prefs.layout === 'comfortable' ? 'comfortable' : 'sheet') : prefs.layout === 'list' ? 'list' : 'grid';
         view.sort = ['manual', 'newest', 'oldest', 'title-asc', 'title-desc'].includes(prefs.sort) ? prefs.sort : 'manual';
-        view.ref = db.ref(`users/${currentUid}/${view.scope === 'vault' ? 'kept' : 'clips'}`);
+        const workspaceUid = girlfriend && view.scope === 'clips' ? OWNER_UID : currentUid;
+        view.ref = db.ref(`users/${workspaceUid}/${view.scope === 'vault' ? 'kept' : 'clips'}`);
       }
       $('signIn').hidden = true; $('mainWorkspace').hidden = false;
       db.ref('.info/serverTimeOffset').on('value', snap => { clockOffset = Number(snap.val()) || 0; tick(); });
@@ -251,7 +262,10 @@ function stopSession() {
     view.ui.Input.value = ''; view.ui.Search.value = ''; view.query = ''; view.type = 'all'; view.ui.Type.value = 'all';
   }
   pendingExpiry.clear(); expiryQueue.clear(); currentUid = null; vaultBytes = null;
+  girlfriend = false; document.body.classList.remove('girlfriend-theme');
   $('clipsBulkKeep').hidden = false;
+  $('clipsNewGroup').hidden = false;
+  $('clipsSelect').hidden = false;
   activeScope = 'clips'; $('mainWorkspace').inert = false; $('vault').hidden = true; $('mainWorkspace').hidden = true; $('signIn').hidden = false;
   $('toast').hidden = true;
 }
@@ -278,7 +292,7 @@ function createSection(view, group) {
   const count = element('span', 'group-count');
   const menu = button('•••', () => openGroupDialog(view, currentGroup(view, id)), 'group-menu');
   menu.setAttribute('aria-label', 'Manage group');
-  menu.hidden = !id;
+  menu.hidden = !id || girlfriend;
   const items = element('div', 'group-items');
   items.id = view.scope + '-group-' + (id || 'unfiled');
   toggle.setAttribute('aria-controls', items.id);
@@ -340,7 +354,7 @@ function render(view) {
     const keys = view.visible.filter(k => M.groupId(view.items[k]) === id);
     const groupTotal = Object.values(view.items).filter(i => M.groupId(i) === id).length;
     rec.name.textContent = g?.name || 'Unfiled';
-    rec.section.style.setProperty('--group-color', g?.color || '#87929b');
+    rec.section.style.setProperty('--group-color', girlfriend ? pinkColor(id) : g?.color || '#87929b');
     rec.count.textContent = filtered ? `${keys.length}/${groupTotal}` : groupTotal;
     rec.menu.setAttribute('aria-label', 'Manage group: ' + (g?.name || 'Unfiled'));
     rec.section.hidden = filtered ? keys.length === 0 : !id && total === 0 && view.groups.length === 0;
@@ -518,6 +532,7 @@ function createCard(view, key, item) {
     updateSelection(view);
   };
   rec.selector.append(rec.checkbox);
+  if (girlfriend) rec.selector.hidden = true;
   top.append(rec.handle, rec.tag, rec.time, rec.pin, rec.selector);
   rec.header = createHeader(view, key, item.title);
   rec.content = element('div', 'clip-content');
@@ -539,6 +554,8 @@ function createCard(view, key, item) {
     actions.append(keep);
   }
   const more = button('•••', () => openItemDialog(view, [key]), 'more-button');
+  more.hidden = girlfriend && !canEdit(item);
+  rec.handle.hidden = girlfriend;
   more.setAttribute('aria-label', 'Organize clip: ' + clipLabel(item));
   actions.append(more);
   if (view.scope === 'vault') {
@@ -561,7 +578,7 @@ function updateCard(view, rec, item) {
   const contentChanged = !rec.item || item.type !== rec.item.type || item.content !== rec.item.content || JSON.stringify(item.images) !== JSON.stringify(rec.item.images);
   rec.item = item;
   rec.tag.textContent = item.type === 'image' && imageContents(item).length > 1 ? imageContents(item).length + ' images' : item.type;
-  rec.el.style.setProperty('--card-color', M.color(item.color) || M.defaultColor(rec.key));
+  rec.el.style.setProperty('--card-color', girlfriend ? pinkColor(item.color || rec.key) : M.color(item.color) || M.defaultColor(rec.key));
   rec.el.setAttribute('aria-label', clipLabel(item));
   rec.handle.setAttribute('aria-label', 'Move clip: ' + clipLabel(item));
   rec.checkbox.setAttribute('aria-label', 'Select clip: ' + clipLabel(item));
@@ -805,11 +822,11 @@ function field(labelText, input) {
   const label = element('label', 'field', labelText);
   label.append(input); return label;
 }
-function swatches(initial) {
+function swatches(initial, pink = girlfriend) {
   let selected = initial;
   const el = element('div', 'swatches');
   el.setAttribute('role', 'group'); el.setAttribute('aria-label', 'Color');
-  for (const [name, hex] of M.COLORS) {
+  for (const [name, hex] of pink ? M.PINK_COLORS : M.COLORS) {
     const choice = button('', () => {
       selected = hex;
       for (const child of el.children) child.setAttribute('aria-pressed', String(child === choice));
@@ -849,14 +866,14 @@ function openItemDialog(view, requestedKeys) {
   fillGroupOptions(destination, view, !single);
   destination.value = single ? M.groupId(item) : '*';
   body.append(field('Group', destination));
-  const colors = swatches(single ? M.color(item.color) || M.defaultColor(keys[0]) : '');
+  const colors = swatches(single ? M.color(item.color) || M.defaultColor(keys[0]) : '', single && item.authorEmail === GIRLFRIEND_EMAIL);
   body.append(element('p', '', single ? 'Color label' : 'Color label · leave unchanged or choose a color'), colors.el);
   const pin = document.createElement('select');
   if (!single) pin.add(new Option('Keep pin status', '*'));
   pin.add(new Option('Normal position', 'no')); pin.add(new Option('Pin to top of group', 'yes'));
   pin.value = single ? (item.pinned ? 'yes' : 'no') : '*';
   body.append(field('Position', pin));
-  if (view.scope === 'clips') body.append(element('p', 'dialog-help', 'Pinned clips still expire after 10 minutes. Use Keep to save a clip in the vault.'));
+  if (view.scope === 'clips') body.append(element('p', 'dialog-help', owner() ? 'Pinned clips still expire after 10 minutes. Use Keep to save a clip in the vault.' : 'Pinned clips still expire after 10 minutes.'));
   if (single) {
     const lane = M.ordered(view.items, view.scope).filter(k => M.groupId(view.items[k]) === M.groupId(item) && !!view.items[k].pinned === !!item.pinned);
     const index = lane.indexOf(keys[0]);
@@ -1216,13 +1233,14 @@ async function addItem(view, type, content, destinationId = view.ui.Destination.
   if (view.scope === 'clips' && freeClipFull()) throw new Error(freeClipMessage);
   if (typeof content !== 'string' || (type === 'image' ? content.length > 1500000 : content.length > 100000)) throw new Error('Clip is too large. Use a smaller image or shorter text.');
   if (images && (images.length > 5 || images.some(image => image.length > 1500000))) throw new Error('Choose up to five images, each under 1 MB.');
-  const ref = view.scope === 'clips' && !owner() ? view.ref.child(FREE_CLIP_KEY) : view.ref.push();
+  const ref = view.scope === 'clips' && !owner() && !girlfriend ? view.ref.child(FREE_CLIP_KEY) : view.ref.push();
   const group = currentGroup(view, destinationId);
-  const item = { type, content, color: group?.color || M.defaultColor(ref.key), order: -now(), revision: 0,
+  const item = { type, content, color: girlfriend ? pinkColor(ref.key) : group?.color || M.defaultColor(ref.key), order: -now(), revision: 0,
     [view.scope === 'vault' ? 'keptAt' : 'createdAt']: firebase.database.ServerValue.TIMESTAMP };
+  if (girlfriend) item.authorEmail = GIRLFRIEND_EMAIL;
   if (images?.length > 1) item.images = images;
   if (group) item.group = group;
-  if (view.scope === 'clips' && !owner()) {
+  if (view.scope === 'clips' && !owner() && !girlfriend) {
     const result = await ref.transaction(current => current === null ? item : undefined, undefined, false);
     if (!result.committed) throw new Error(freeClipMessage);
   } else await ref.set(item);

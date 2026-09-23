@@ -6,13 +6,16 @@
       "$uid": {
         ".read": false,
         "clips": {
-          ".read": "auth != null && auth.uid === $uid",
+          ".read": "auth != null && (auth.uid === $uid || ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' && auth.token.email === 'usa.prasoblarp@gmail.com' && auth.token.email_verified === true))",
           ".indexOn": [
             "createdAt"
           ],
           "$clipId": {
-            ".write": "auth != null && auth.uid === $uid && ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' || $clipId === 'one' || (data.exists() && !newData.exists()))",
-            ".validate": "newData.hasChildren(['type', 'content', 'createdAt'])",
+            ".write": "auth != null && ((auth.uid === $uid && ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' || $clipId === 'one' || (data.exists() && !newData.exists()))) || ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' && auth.token.email === 'usa.prasoblarp@gmail.com' && auth.token.email_verified === true && (!data.exists() || data.child('authorEmail').val() === 'usa.prasoblarp@gmail.com') && (!newData.exists() || (newData.child('authorEmail').val() === 'usa.prasoblarp@gmail.com' && (newData.child('color').val() === '#c73f78' || newData.child('color').val() === '#d76b96' || newData.child('color').val() === '#a63770' || newData.child('color').val() === '#db5e8a' || newData.child('color').val() === '#b05291' || newData.child('color').val() === '#bd348b')))))",
+            ".validate": "newData.hasChildren(['type', 'content', 'createdAt']) && (!data.child('authorEmail').exists() || newData.child('authorEmail').val() === data.child('authorEmail').val()) && (newData.child('authorEmail').val() !== 'usa.prasoblarp@gmail.com' || (newData.child('color').val() === '#c73f78' || newData.child('color').val() === '#d76b96' || newData.child('color').val() === '#a63770' || newData.child('color').val() === '#db5e8a' || newData.child('color').val() === '#b05291' || newData.child('color').val() === '#bd348b'))",
+            "authorEmail": {
+              ".validate": "newData.isString() && newData.val() === 'usa.prasoblarp@gmail.com'"
+            },
             "type": {
               ".validate": "newData.isString() && (newData.val() === 'text' || newData.val() === 'link' || newData.val() === 'image')"
             },

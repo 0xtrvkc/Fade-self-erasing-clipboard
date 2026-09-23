@@ -11,8 +11,12 @@
     ['Violet', '#7052ad'], ['Red', '#b22e38'], ['Teal', '#0e7c86'],
     ['Pink', '#ad4386'], ['Gold', '#977414']
   ];
+  const PINK_COLORS = [
+    ['Rose', '#c73f78'], ['Blush', '#d76b96'], ['Berry', '#a63770'],
+    ['Peony', '#db5e8a'], ['Orchid', '#b05291'], ['Fuchsia', '#bd348b']
+  ];
   const finite = value => typeof value === 'number' && Number.isFinite(value);
-  const color = value => COLORS.some(c => c[1] === value) ? value : '';
+  const color = value => [...COLORS, ...PINK_COLORS].some(c => c[1] === value) ? value : '';
   function imageContents(item) {
     if (item?.type !== 'image') return [];
     const values = Array.isArray(item.images) && item.images.length ? item.images : [item.content];
@@ -116,6 +120,6 @@
     try { path = decodeURIComponent(path); } catch { /* Keep the valid encoded path. */ }
     return url.hostname.replace(/^www\./i, '') + path;
   }
-  return { storageBytes, storageUsage, imageContents, TTL, COLORS, color, isClip, timestamp, expired, group, groupId, groups, rank,
+  return { storageBytes, storageUsage, imageContents, TTL, COLORS, PINK_COLORS, color, isClip, timestamp, expired, group, groupId, groups, rank,
     ordered, matches, defaultColor, movePlan, patchCurrent, safeLink, linkPreview };
 });
