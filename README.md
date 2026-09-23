@@ -1,6 +1,6 @@
 # Fade
 
-A clipboard that connects your phone and desktop. Temporary clips disappear after 10 minutes. Keep something in the hidden vault when you want it to last.
+A private cross-device clipboard using Google sign-in. Temporary clips disappear from the app after ten minutes, and a scheduled cleanup removes expired records from Firebase. The `iii` vault keeps clips until you delete them.
 
 [Open Fade](https://0xtrvkc.github.io/Fade-self-erasing-clipboard/)
 
@@ -19,11 +19,11 @@ The normal clipboard and the `iii` vault have the same organization controls:
 - **Bulk actions:** choose **Select**, pick clips or **Select all** matching clips, then move, recolor, pin, keep, or delete them. Keep is available in the normal clipboard.
 - **Delete and undo:** deletion asks for confirmation and syncs to every device. Undo is available for 10 seconds and preserves the original expiry time. An expired clip cannot be restored.
 
-Group names, colors, membership, pin status, titles, and clip order travel with the clip in Firebase. Empty groups, collapsed sections, layout, and sort preferences are local to each browser. Each workspace has its own preferences. No clipboard content is written to localStorage.
+Group names, colors, membership, pin status, titles, and clip order travel with the clip in your per-user Firebase workspace. Empty groups, collapsed sections, layout, and sort preferences are local to each browser. Each workspace has its own preferences. No clipboard content is written to localStorage.
 
 ## Everyday use
 
-1. Open Fade on both devices.
+1. Open Fade on both devices and sign in with the same Google account. Enable popups for this page if the browser blocks sign-in.
 2. Type or paste into the composer, select a destination group, and tap **Add clip**. The image button accepts an image from your device. Clipboard images can also be pasted.
 3. Tap **Copy** on the other device. Images are converted to PNG for clipboard compatibility; if the browser blocks copying, **Save image** is offered.
 
@@ -44,17 +44,17 @@ Clip content uses a compact 14px type size. Link cards show only the useful doma
 
 ## Sync and expiry
 
-Fade uses the existing Firebase Realtime Database paths, `clips` and `kept`. Organization is optional metadata on each item, so existing records continue to work without a migration or new database paths.
+Fade stores clips at `users/<uid>/clips` and kept items at `users/<uid>/kept`. Each signed-in user has a separate workspace. Old root-level `clips` and `kept` records are intentionally not read by the new app.
 
 - Changes use transactions that merge metadata with the latest record. An expired or deleted clip cannot be recreated by a late edit or move.
 - Keep writes the vault copy first and only removes an unchanged source clip. If another device edits the source during that operation, the source stays in place.
 - New text drafts are cleared only after the save succeeds. Connection and write failures are shown in the interface.
-- Countdown calculations use Firebase's server-time offset. Expiry is performed by an open, connected client; there is no scheduled server-side cleanup. Expired records may remain in the database while every client is closed or offline and are cleaned up when a client reconnects.
+- Countdown calculations use Firebase's server-time offset. Open clients remove expired clips promptly; the scheduled `purgeExpiredClips` function removes them from Firebase when no browser is open. The job runs each minute, so deletion is not exact to the second. The kept vault has no expiry.
 - Simultaneous reorders are not collaborative locking: the latest successful writes determine order. Content edits are merged independently.
 
 ## Run or deploy
 
-No build step or package installation is required. Serve the repository root with any static host, including GitHub Pages. Keep `index.html`, `styles.css`, `organizer.js`, `app.js`, `manifest.json`, and `icons/` together.
+The website needs no build step. Serve the repository root with any static host, including GitHub Pages. The scheduled cleanup requires a separate Firebase Functions deployment and a Blaze plan.
 
 For a local server:
 
@@ -64,18 +64,30 @@ python3 -m http.server 8000
 
 Then open `http://localhost:8000`. Clipboard access requires HTTPS or localhost and browser permission.
 
-For a new Firebase project:
+## Secure deployment
 
-1. Create a Firebase web app and enable Realtime Database.
-2. Replace `firebaseConfig` at the top of `app.js` with your project's configuration.
-3. Configure database access for both `clips` and `kept`. Existing deployments that already permit reading and writing those paths need no additional paths for grouping.
-4. Enable GitHub Pages from the `main` branch / repository root, or upload the files to your static host.
+The website alone does **not** deploy Firebase Database Rules or the scheduled cleanup function. Do these steps in order:
+
+1. In Firebase Console for project `fade-self-erasing-clipboard`, enable **Authentication → Sign-in method → Google**. Add `0xtrvkc.github.io` and any local test domain to **Authentication → Settings → Authorized domains**. Use the same Firebase project defined in `app.js`.
+2. Back up the Realtime Database in Firebase Console, especially the old root-level `/clips` and `/kept` paths. Review its existing rules. If they allow public access, treat any data that was there as potentially exposed; changing this code does not reverse prior access.
+3. Install Firebase CLI, authenticate with the account that owns the project, and select the project explicitly. From this repository root run:
+
+   ```sh
+   npm install -g firebase-tools
+   firebase login
+   npm --prefix functions install
+   firebase deploy --project fade-self-erasing-clipboard --only database,functions
+   ```
+
+   Functions use the billed Blaze plan and Cloud Scheduler. Deploying the included database rules blocks the legacy root paths immediately. The app will not work until these rules and Google Authentication are enabled.
+4. Push the website files to GitHub Pages, sign in, and check that a new clip appears only under `users/<your uid>/clips`. Test another Google account: it must not see or edit that clip. Check the scheduled function logs and confirm an expired clip is removed while all browser tabs are closed.
+5. If you want to keep legacy data, copy only *your own* records from `/clips` and `/kept` into the correct `users/<your uid>/clips` and `users/<your uid>/kept` paths using the Firebase Console or an audited Admin SDK migration. Do this after creating your user account by signing in. Then remove the old root data. Do not automatically assign shared legacy data to one account.
+
+The client limits text to 100,000 characters and images to five files of 1 MB each. Database Rules also check type and encoded image sizes. There is no end-to-end encryption: Firebase project administrators can access stored clips. The `iii` shortcut is a screen shortcut, not a second password. The Firebase web API key in `app.js` identifies the project; it is not a private credential. Never place service-account keys in this repository.
 
 ## Access model
 
-The `iii` shortcut hides a screen; it is not authentication or encryption. Access to the data is controlled by Firebase Database Rules. The app does not implement sign-in or private per-user storage. A database configured for public reads and writes is accessible to anyone who knows its endpoint, including its kept items.
-
-Firebase client configuration identifies the project and does not grant access independently of Database Rules. Use this shared clipboard only for content appropriate to your configured access rules.
+Firebase Authentication and Realtime Database Rules restrict reads and writes to `users/<auth.uid>`. The scheduled job uses Firebase Admin privileges and only reads registered accounts to remove temporary clips after expiry. A browser-side logout clears rendered clips from the page. Sign out on shared devices.
 
 ## Development checks
 
@@ -84,12 +96,12 @@ Organization rules are in `organizer.js`; browser interaction and Firebase integ
 Run the dependency-free logic checks with Node.js:
 
 ```sh
-node --test tests/organizer.test.cjs
+node --test tests/*.test.cjs
 node --check app.js
 node --check organizer.js
 ```
 
-The tests cover legacy records, expiry boundaries, late edits, pinning, group reconciliation, search, drag/reorder plans, and safe links. They do not replace browser/device testing or exercise a live Firebase database.
+The tests cover legacy records, expiry boundaries, late edits, pinning, group reconciliation, search, drag/reorder plans, and safe links. They do not replace testing the deployed Firebase rules with two accounts or checking the scheduled function in your project.
 
 ## License
 

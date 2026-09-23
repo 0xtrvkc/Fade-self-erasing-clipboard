@@ -1,0 +1,158 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "clips": {
+          ".indexOn": [
+            "createdAt"
+          ],
+          "$clipId": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['type', 'content', 'createdAt'])",
+            "type": {
+              ".validate": "newData.isString() && (newData.val() === 'text' || newData.val() === 'link' || newData.val() === 'image')"
+            },
+            "content": {
+              ".validate": "newData.isString() && newData.val().length <= (newData.parent().child('type').val() === 'image' ? 1500000 : 100000) && (newData.parent().child('type').val() !== 'image' || newData.val().matches(/^data:image\\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/))"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber() && (data.exists() ? newData.val() === data.val() : newData.val() >= now - 600000 && newData.val() <= now + 60000)"
+            },
+            "keptAt": {
+              ".validate": "newData.isNumber() && (data.exists() ? newData.val() === data.val() : newData.val() <= now + 60000)"
+            },
+            "title": {
+              ".validate": "newData.isString() && newData.val().length <= 160"
+            },
+            "color": {
+              ".validate": "newData.isString() && newData.val().matches(/^#[0-9a-fA-F]{6}$/)"
+            },
+            "order": {
+              ".validate": "newData.isNumber()"
+            },
+            "revision": {
+              ".validate": "newData.isNumber() && newData.val() >= 0"
+            },
+            "pinned": {
+              ".validate": "newData.isBoolean()"
+            },
+            "group": {
+              ".validate": "newData.hasChildren(['id', 'name', 'color', 'order', 'updatedAt'])",
+              "id": {
+                ".validate": "newData.isString() && newData.val().matches(/^[a-zA-Z0-9_-]{1,100}$/)"
+              },
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 60"
+              },
+              "color": {
+                ".validate": "newData.isString() && newData.val().matches(/^#[0-9a-fA-F]{6}$/)"
+              },
+              "order": {
+                ".validate": "newData.isNumber()"
+              },
+              "updatedAt": {
+                ".validate": "newData.isNumber()"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "images": {
+              ".validate": "newData.parent().child('type').val() === 'image' && newData.hasChildren(['0', '1'])",
+              "$index": {
+                ".validate": "($index === '0' || $index === '1' || $index === '2' || $index === '3' || $index === '4') && newData.isString() && newData.val().length <= 1500000 && newData.val().matches(/^data:image\\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/)"
+              }
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "kept": {
+          "$clipId": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.hasChildren(['type', 'content', 'keptAt'])",
+            "type": {
+              ".validate": "newData.isString() && (newData.val() === 'text' || newData.val() === 'link' || newData.val() === 'image')"
+            },
+            "content": {
+              ".validate": "newData.isString() && newData.val().length <= (newData.parent().child('type').val() === 'image' ? 1500000 : 100000) && (newData.parent().child('type').val() !== 'image' || newData.val().matches(/^data:image\\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/))"
+            },
+            "keptAt": {
+              ".validate": "newData.isNumber() && (data.exists() ? newData.val() === data.val() : newData.val() <= now + 60000)"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber() && (data.exists() ? newData.val() === data.val() : newData.val() <= now + 60000)"
+            },
+            "title": {
+              ".validate": "newData.isString() && newData.val().length <= 160"
+            },
+            "color": {
+              ".validate": "newData.isString() && newData.val().matches(/^#[0-9a-fA-F]{6}$/)"
+            },
+            "order": {
+              ".validate": "newData.isNumber()"
+            },
+            "revision": {
+              ".validate": "newData.isNumber() && newData.val() >= 0"
+            },
+            "pinned": {
+              ".validate": "newData.isBoolean()"
+            },
+            "group": {
+              ".validate": "newData.hasChildren(['id', 'name', 'color', 'order', 'updatedAt'])",
+              "id": {
+                ".validate": "newData.isString() && newData.val().matches(/^[a-zA-Z0-9_-]{1,100}$/)"
+              },
+              "name": {
+                ".validate": "newData.isString() && newData.val().length <= 60"
+              },
+              "color": {
+                ".validate": "newData.isString() && newData.val().matches(/^#[0-9a-fA-F]{6}$/)"
+              },
+              "order": {
+                ".validate": "newData.isNumber()"
+              },
+              "updatedAt": {
+                ".validate": "newData.isNumber()"
+              },
+              "$other": {
+                ".validate": false
+              }
+            },
+            "images": {
+              ".validate": "newData.parent().child('type').val() === 'image' && newData.hasChildren(['0', '1'])",
+              "$index": {
+                ".validate": "($index === '0' || $index === '1' || $index === '2' || $index === '3' || $index === '4') && newData.isString() && newData.val().length <= 1500000 && newData.val().matches(/^data:image\\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/)"
+              }
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "clips": {
+      ".read": false,
+      ".write": false
+    },
+    "kept": {
+      ".read": false,
+      ".write": false
+    },
+    "accounts": {
+      "$uid": {
+        ".read": false,
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.val() === true"
+      }
+    }
+  }
+}

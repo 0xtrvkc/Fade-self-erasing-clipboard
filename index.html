@@ -26,11 +26,18 @@
 <link rel="stylesheet" href="styles.css?v=20260920-storage-sort">
 </head>
 <body>
-<section id="mainWorkspace" class="workspace" aria-label="Clipboard" >
+<section id="signIn" class="sign-in" aria-labelledby="signInTitle">
+  <div class="sign-in-card"><h1 id="signInTitle">FADE</h1><p>Sign in with the same Google account on each device to access your private clipboard.</p>
+    <button id="signInButton" class="primary" type="button" disabled>Loading…</button><p id="signInError" role="alert"></p>
+    <p class="sign-in-note">Your clips are stored in Firebase. The vault shortcut only hides its screen; it does not encrypt clips.</p>
+  </div>
+</section>
+<section id="mainWorkspace" class="workspace" aria-label="Clipboard" hidden>
   <header class="app-header">
     <div class="header-inner">
       <div class="brand"><h1>FADE</h1><span class="subtitle">Cross-device clipboard · 10 minute life</span></div>
       <span class="connection" id="status" role="status">Connecting…</span>
+      <button class="sign-out" type="button" data-sign-out>Sign out</button>
     </div>
     <div class="toolbar" aria-label="Clipboard controls">
       <label class="search"><span class="sr-only">Search clips</span><input id="clipsSearch" type="search" placeholder="Search clips, titles, groups…" autocomplete="off"></label>
@@ -70,7 +77,7 @@
   <header class="app-header">
     <div class="header-inner">
       <div class="brand"><h2>THE VAULT</h2><span class="subtitle">Your permanent workspace · no expiry</span><button id="vaultStorage" class="storage-status" type="button" aria-label="Vault storage usage and budget"><meter id="vaultStorageMeter" min="0" max="100" value="0" aria-label="Vault budget used" hidden></meter><span id="vaultStorageText" role="status">Loading storage…</span></button></div>
-      <span class="connection" id="vaultStatus" role="status">Connecting…</span><button id="vaultExit" type="button">Exit ×</button>
+      <span class="connection" id="vaultStatus" role="status">Connecting…</span><button class="sign-out" type="button" data-sign-out>Sign out</button><button id="vaultExit" type="button">Exit ×</button>
     </div>
     <div class="toolbar" aria-label="Vault controls">
       <label class="search"><span class="sr-only">Search vault</span><input id="vaultSearch" type="search" placeholder="Search clips, titles, groups…" autocomplete="off"></label>
@@ -117,7 +124,7 @@
     <div class="breach-meter"><span></span></div>
     <div class="breach-status">
       <span>BYPASSING MEMORY LOCK</span>
-      <span>DECRYPTING PERMANENT STORAGE</span>
+      <span>OPENING YOUR SAVED CLIPS</span>
       <span>ACCESS OVERRIDE ACCEPTED</span>
     </div>
   </div>
@@ -151,6 +158,7 @@
 <div class="sr-only" id="announcer" role="status" aria-live="polite"></div>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="organizer.js?v=20260920-storage-sort"></script>
 <script src="app.js?v=20260920-storage-sort"></script>
 </body>

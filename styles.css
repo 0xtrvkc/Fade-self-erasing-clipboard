@@ -543,3 +543,12 @@ body.image-drop-ready::after {
 #vaultSort { max-width: 205px; }
 #vaultBudget { display: block; width: 100%; margin-top: 8px; }
 @media (max-width: 700px) { #vault .storage-status { margin-top: 8px; } }
+
+/* The clipboard is unavailable until Firebase Authentication restores a user. */
+.sign-in { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px; }
+.sign-in-card { width: min(440px, 100%); padding: 32px; border: 1px solid var(--line); border-radius: 18px; background: var(--raised); line-height: 1.6; }
+.sign-in-card h1 { margin-top: 0; }
+.sign-in-card .primary { min-height: 44px; padding: 8px 20px; }
+.sign-in-note { opacity: .75; font-size: .85rem; }
+#signInError { color: #ff6b6b; min-height: 1.5em; }
+.sign-out { margin-left: 12px; }

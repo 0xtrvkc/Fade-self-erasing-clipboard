@@ -22,7 +22,7 @@ function vaultCapacity() {
   try { return Number(localStorage.getItem('fade.vault.capacity')) || VAULT_CAPACITY_BYTES; }
   catch { return VAULT_CAPACITY_BYTES; }
 }
-let db, connected = false, clockOffset = 0, activeScope = 'clips', toastTimeout, unlockTimer;
+let db, auth, currentUid = null, connected = false, clockOffset = 0, activeScope = 'clips', toastTimeout, unlockTimer;
 let drag = null;
 const now = () => Date.now() + clockOffset;
 const $ = id => document.getElementById(id);
@@ -32,12 +32,13 @@ const pendingExpiry = new Set();
 const expiryQueue = new Set();
 
 function readPreferences(scope) {
-  try { return JSON.parse(localStorage.getItem('fade.organizer.v1.' + scope)) || {}; }
+  try { return currentUid ? JSON.parse(localStorage.getItem('fade.organizer.v2.' + currentUid + '.' + scope)) || {} : {}; }
   catch { return {}; }
 }
 function savePreferences(view) {
   try {
-    localStorage.setItem('fade.organizer.v1.' + view.scope, JSON.stringify({
+    if (!currentUid) return;
+    localStorage.setItem('fade.organizer.v2.' + currentUid + '.' + view.scope, JSON.stringify({
       groups: view.groups, collapsed: [...view.collapsed], layout: view.layout, sort: view.sort
     }));
   } catch { /* Device preferences are optional; clipboard content is never stored here. */ }
@@ -156,7 +157,9 @@ function purgeExpired(key) {
     .catch(() => { $('status').textContent = 'Expiry sync failed'; });
 }
 function listen(view) {
+  const uid = currentUid;
   view.ref.on('value', snap => {
+    if (uid !== currentUid) return;
     const data = snap.val() || {};
     if (view.scope === 'vault') { vaultBytes = M.storageBytes(data); vaultStorageError = false; updateVaultStorage(); }
     view.items = Object.create(null);
@@ -173,6 +176,7 @@ function listen(view) {
     render(view);
     tick();
   }, () => {
+    if (uid !== currentUid) return;
     if (view.scope === 'vault') { vaultStorageError = true; updateVaultStorage(); }
     view.ui.Count.textContent = 'Could not load clips';
     view.ui.Empty.hidden = false;
@@ -184,28 +188,71 @@ function initFirebase() {
   try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
-    scopes.clips.ref = db.ref('clips');
-    scopes.vault.ref = db.ref('kept');
-    db.ref('.info/serverTimeOffset').on('value', snap => { clockOffset = Number(snap.val()) || 0; tick(); });
-    db.ref('.info/connected').on('value', snap => {
-      connected = snap.val() === true;
-      $('status').textContent = connected ? 'Synced' : 'Reconnecting…';
-      $('status').classList.toggle('online', connected);
-      if ($('vaultStatus')) {
+    auth = firebase.auth();
+    auth.onAuthStateChanged(async user => {
+      stopSession();
+      if (!user) { $('signIn').hidden = false; $('signInButton').disabled = false; $('signInButton').textContent = 'Continue with Google'; return; }
+      currentUid = user.uid;
+      try { await db.ref(`accounts/${user.uid}`).set(true); }
+      catch (err) { $('signInError').textContent = 'Could not set up your private workspace. Deploy the database rules and retry.'; $('signInButton').disabled = false; $('signInButton').textContent = 'Retry setup'; return; }
+      if (currentUid !== user.uid) return;
+      for (const view of Object.values(scopes)) {
+        const prefs = readPreferences(view.scope);
+        view.groups = M.groups({}, Array.isArray(prefs.groups) ? prefs.groups : []);
+        view.collapsed = new Set(Array.isArray(prefs.collapsed) ? prefs.collapsed.filter(x => typeof x === 'string') : []);
+        view.layout = view.scope === 'vault' ? (prefs.layout === 'comfortable' ? 'comfortable' : 'sheet') : prefs.layout === 'list' ? 'list' : 'grid';
+        view.sort = ['manual', 'newest', 'oldest', 'title-asc', 'title-desc'].includes(prefs.sort) ? prefs.sort : 'manual';
+        view.ref = db.ref(`users/${currentUid}/${view.scope === 'vault' ? 'kept' : 'clips'}`);
+      }
+      $('signIn').hidden = true; $('mainWorkspace').hidden = false;
+      db.ref('.info/serverTimeOffset').on('value', snap => { clockOffset = Number(snap.val()) || 0; tick(); });
+      db.ref('.info/connected').on('value', snap => {
+        connected = snap.val() === true;
+        $('status').textContent = connected ? 'Synced' : 'Reconnecting…';
+        $('status').classList.toggle('online', connected);
         $('vaultStatus').textContent = connected ? 'Synced' : 'Reconnecting…';
         $('vaultStatus').classList.toggle('online', connected);
-      }
-      if (connected) { pendingExpiry.clear(); for (const key of expiryQueue) purgeExpired(key); tick(); }
-    });
-    listen(scopes.clips);
-    listen(scopes.vault);
+        if (connected) { pendingExpiry.clear(); for (const key of expiryQueue) purgeExpired(key); tick(); }
+      });
+      listen(scopes.clips); listen(scopes.vault);
+    }, err => { $('signInError').textContent = err.message || 'Could not restore sign-in.'; $('signInButton').disabled = false; });
   } catch (err) {
     console.error(err);
+    $('signInError').textContent = 'Could not load Firebase. Check your connection and reload.';
+    $('signInButton').textContent = 'Reload'; $('signInButton').disabled = false;
     $('status').textContent = 'Connection unavailable';
     for (const view of Object.values(scopes)) view.ui.Count.textContent = 'Connection unavailable';
     toast('Could not connect. Check your connection, then reload.');
   }
 }
+function stopSession() {
+  connected = false;
+  clearTimeout(unlockTimer); unlockTimer = null;
+  document.body.classList.remove('vault-breaching');
+  $('unlockPopup').classList.remove('show', 'breach-ready');
+  $('mainWorkspace').classList.remove('breach-ready');
+  $('vault').classList.remove('vault-entering', 'vault-preparing');
+  cancelDrag(); cancelKeepHold();
+  if (dialog.open) closeDialog();
+  if (db) { db.ref('.info/serverTimeOffset').off(); db.ref('.info/connected').off(); }
+  for (const view of Object.values(scopes)) {
+    view.ref?.off(); view.ref = null; view.items = {};
+    view.cards.clear(); view.sections.clear(); view.selected.clear(); view.visible = [];
+    view.ui.Board.querySelectorAll('.group').forEach(section => section.remove());
+    view.ui.Input.value = ''; view.ui.Search.value = ''; view.query = ''; view.type = 'all'; view.ui.Type.value = 'all';
+  }
+  pendingExpiry.clear(); expiryQueue.clear(); currentUid = null; vaultBytes = null;
+  activeScope = 'clips'; $('mainWorkspace').inert = false; $('vault').hidden = true; $('mainWorkspace').hidden = true; $('signIn').hidden = false;
+  $('toast').hidden = true;
+}
+$('signInButton').onclick = async () => {
+  if (!auth) { location.reload(); return; }
+  if (auth?.currentUser) { location.reload(); return; }
+  $('signInButton').disabled = true; $('signInError').textContent = '';
+  try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+  catch (err) { $('signInError').textContent = err.code === 'auth/popup-blocked' ? 'Allow popups for this page and try again.' : (err.message || 'Sign-in failed.'); $('signInButton').disabled = false; }
+};
+document.querySelectorAll('[data-sign-out]').forEach(btn => btn.onclick = () => auth.signOut().catch(err => toast(err.message || 'Could not sign out.')));
 
 function createSection(view, group) {
   const id = group?.id || '';
@@ -1154,6 +1201,8 @@ async function copyItem(item, btn) {
 function looksLikeUrl(text) { return /^(https?:\/\/|www\.)\S+$/i.test(text.trim()); }
 async function addItem(view, type, content, destinationId = view.ui.Destination.value, images = null) {
   requireConnection();
+  if (typeof content !== 'string' || (type === 'image' ? content.length > 1500000 : content.length > 100000)) throw new Error('Clip is too large. Use a smaller image or shorter text.');
+  if (images && (images.length > 5 || images.some(image => image.length > 1500000))) throw new Error('Choose up to five images, each under 1 MB.');
   const ref = view.ref.push();
   const group = currentGroup(view, destinationId);
   const item = { type, content, color: group?.color || M.defaultColor(ref.key), order: -now(), revision: 0,
@@ -1188,7 +1237,7 @@ async function processImages(view, files, destinationId = view.ui.Destination.va
   try {
     requireConnection();
     if (!files.length) return;
-    if (files.reduce((sum, file) => sum + file.size, 0) > 20 * 1024 * 1024) throw new Error('Choose images totaling less than 20 MB.');
+    if (files.length > 5 || files.some(file => file.size > 1000000)) throw new Error('Choose up to five images, each under 1 MB.');
     const images = await Promise.all(files.map(file => {
       if (!/^image\/(png|jpeg|webp|gif)$/i.test(file.type)) throw new Error('Choose JPEG, PNG, WebP, or GIF images.');
       return new Promise((resolve, reject) => {
@@ -1216,6 +1265,7 @@ function clearTypedVaultCode(target) {
 }
 
 function openVault(animate = false) {
+  if (!currentUid) return;
   activeScope = 'vault';
   $('mainWorkspace').inert = true;
   $('vault').hidden = false;
@@ -1229,7 +1279,7 @@ function openVault(animate = false) {
   requestAnimationFrame(() => { for (const rec of scopes.vault.cards.values()) checkExpand(rec); });
 }
 function unlockVault() {
-  if (activeScope === 'vault' || unlockTimer) return;
+  if (!currentUid || activeScope === 'vault' || unlockTimer) return;
   // Block a second trigger while the two pre-warm frames are pending.
   unlockTimer = -1;
   const popup = $('unlockPopup');
@@ -1245,6 +1295,7 @@ function unlockVault() {
   vault.classList.add('vault-preparing');
 
   requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (!currentUid) return;
     document.body.classList.add('vault-breaching');
     popup.classList.add('show');
     unlockTimer = setTimeout(() => openVault(true), 1120);
