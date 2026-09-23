@@ -4,13 +4,14 @@
     ".write": false,
     "users": {
       "$uid": {
-        ".read": "auth != null && auth.uid === $uid",
+        ".read": false,
         "clips": {
+          ".read": "auth != null && auth.uid === $uid",
           ".indexOn": [
             "createdAt"
           ],
           "$clipId": {
-            ".write": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid && ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' || $clipId === 'one' || (data.exists() && !newData.exists()))",
             ".validate": "newData.hasChildren(['type', 'content', 'createdAt'])",
             "type": {
               ".validate": "newData.isString() && (newData.val() === 'text' || newData.val() === 'link' || newData.val() === 'image')"
@@ -72,8 +73,9 @@
           }
         },
         "kept": {
+          ".read": "auth != null && auth.uid === $uid && $uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2'",
           "$clipId": {
-            ".write": "auth != null && auth.uid === $uid && ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' || $clipId === 'one')",
+            ".write": "auth != null && auth.uid === $uid && ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' || (data.exists() && !newData.exists()))",
             ".validate": "newData.hasChildren(['type', 'content', 'keptAt'])",
             "type": {
               ".validate": "newData.isString() && (newData.val() === 'text' || newData.val() === 'link' || newData.val() === 'image')"

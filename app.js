@@ -17,9 +17,10 @@ const MAX_HEADER_LENGTH = 160;
 // This UID must match the owner UID in database.rules.json. Client checks are only UX;
 // Firebase rules enforce the limit even when someone calls the database directly.
 const OWNER_UID = 'SagJ5qWZwEZWBijqebsWCPRBLHU2';
-const FREE_VAULT_KEY = 'one';
-const freeVaultFull = () => currentUid !== OWNER_UID && Object.keys(scopes.vault.items).length > 0;
-const freeVaultMessage = 'Your free vault holds one item. Delete it before saving another.';
+const FREE_CLIP_KEY = 'one';
+const owner = () => currentUid === OWNER_UID;
+const freeClipFull = () => !owner() && Object.keys(scopes.clips.items).length > 0;
+const freeClipMessage = 'You can add one temporary clip at a time. Delete it or wait for it to expire before adding another.';
 // Optional user-defined Vault budget; never inferred from the Firebase plan.
 const VAULT_CAPACITY_BYTES = null;
 let vaultBytes = null;
@@ -199,6 +200,7 @@ function initFirebase() {
       stopSession();
       if (!user) { $('signIn').hidden = false; $('signInButton').disabled = false; $('signInButton').textContent = 'Continue with Google'; return; }
       currentUid = user.uid;
+      $('clipsBulkKeep').hidden = !owner();
       try { await db.ref(`accounts/${user.uid}`).set(true); }
       catch (err) { $('signInError').textContent = 'Could not set up your private workspace. Deploy the database rules and retry.'; $('signInButton').disabled = false; $('signInButton').textContent = 'Retry setup'; return; }
       if (currentUid !== user.uid) return;
@@ -220,7 +222,8 @@ function initFirebase() {
         $('vaultStatus').classList.toggle('online', connected);
         if (connected) { pendingExpiry.clear(); for (const key of expiryQueue) purgeExpired(key); tick(); }
       });
-      listen(scopes.clips); listen(scopes.vault);
+      listen(scopes.clips);
+      if (owner()) listen(scopes.vault);
     }, err => { $('signInError').textContent = err.message || 'Could not restore sign-in.'; $('signInButton').disabled = false; });
   } catch (err) {
     console.error(err);
@@ -248,6 +251,7 @@ function stopSession() {
     view.ui.Input.value = ''; view.ui.Search.value = ''; view.query = ''; view.type = 'all'; view.ui.Type.value = 'all';
   }
   pendingExpiry.clear(); expiryQueue.clear(); currentUid = null; vaultBytes = null;
+  $('clipsBulkKeep').hidden = false;
   activeScope = 'clips'; $('mainWorkspace').inert = false; $('vault').hidden = true; $('mainWorkspace').hidden = true; $('signIn').hidden = false;
   $('toast').hidden = true;
 }
@@ -384,7 +388,7 @@ function updateSelection(view) {
   const imageCount = getSelected(view).reduce((sum, key) => sum + imageContents(view.items[key]).length, 0);
   view.ui.BulkShare.disabled = imageCount === 0;
   view.ui.BulkShare.textContent = imageCount > 1 ? `Share ${imageCount} images` : 'Share image';
-  if (view.scope === 'clips') $('clipsBulkKeep').disabled = view.selected.size === 0;
+  if (view.scope === 'clips') $('clipsBulkKeep').disabled = !owner() || view.selected.size === 0;
   view.ui.SelectAll.textContent = view.visible.length && view.selected.size === view.visible.length ? 'Deselect all' : 'Select all';
   for (const [key, card] of view.cards) {
     card.selector.hidden = view.scope !== 'vault' && !view.selecting;
@@ -529,7 +533,7 @@ function createCard(view, key, item) {
   rec.expand.setAttribute('aria-controls', rec.content.id);
   const actions = element('div', 'clip-actions');
   actions.append(button(item.type === 'image' && imageContents(item).length > 1 ? 'Open images' : 'Copy', e => imageContents(rec.item).length > 1 ? openImages(rec.item) : copyItem(rec.item, e.currentTarget)));
-  if (view.scope === 'clips') {
+  if (view.scope === 'clips' && owner()) {
     const keep = button('Keep');
     bindKeepHold(keep, () => keepItems(view, [key]));
     actions.append(keep);
@@ -971,20 +975,16 @@ function openGroupDialog(view, group = null) {
 
 async function keepItems(view, keys) {
   requireConnection();
-  if (freeVaultFull()) throw new Error(freeVaultMessage);
+  if (!owner()) throw new Error('Only the owner can keep clips.');
   let count = 0, changed = 0;
   for (const key of keys) {
     const snap = await view.ref.child(key).once('value');
     const item = snap.val();
     if (!M.isClip(item) || M.expired(item, view.scope, now())) continue;
     const kept = { ...item, keptAt: firebase.database.ServerValue.TIMESTAMP, order: -now() };
-    const vaultKey = currentUid === OWNER_UID ? key : FREE_VAULT_KEY;
-    const result = await scopes.vault.ref.child(vaultKey).transaction(current => current === null ? kept : undefined, undefined, false);
+    const result = await scopes.vault.ref.child(key).transaction(current => current === null ? kept : undefined, undefined, false);
     // A prior attempt may have kept a different revision. Never replace it or erase the source.
-    if (!result.committed) {
-      if (currentUid !== OWNER_UID) throw new Error(freeVaultMessage);
-      changed++; continue;
-    }
+    if (!result.committed) { changed++; continue; }
     const removed = await view.ref.child(key).transaction(current => {
       if (!M.isClip(current)) return;
       if ((Number(current.revision) || 0) !== (Number(item.revision) || 0) || current.content !== item.content) return;
@@ -992,7 +992,6 @@ async function keepItems(view, keys) {
     }, undefined, false);
     count++;
     if (!removed.committed) changed++;
-    if (currentUid !== OWNER_UID) break;
   }
   if (count) toast(`${count} clip${count === 1 ? '' : 's'} kept in the vault.${changed ? ' Changed source clips were left in place.' : ''}`);
   else toast(changed ? 'Already kept or changed on another device. Source clips were left in place.' : 'These clips already expired or were removed.');
@@ -1213,18 +1212,19 @@ async function copyItem(item, btn) {
 function looksLikeUrl(text) { return /^(https?:\/\/|www\.)\S+$/i.test(text.trim()); }
 async function addItem(view, type, content, destinationId = view.ui.Destination.value, images = null) {
   requireConnection();
-  if (view.scope === 'vault' && freeVaultFull()) throw new Error(freeVaultMessage);
+  if (view.scope === 'vault' && !owner()) throw new Error('Only the owner can use the vault.');
+  if (view.scope === 'clips' && freeClipFull()) throw new Error(freeClipMessage);
   if (typeof content !== 'string' || (type === 'image' ? content.length > 1500000 : content.length > 100000)) throw new Error('Clip is too large. Use a smaller image or shorter text.');
   if (images && (images.length > 5 || images.some(image => image.length > 1500000))) throw new Error('Choose up to five images, each under 1 MB.');
-  const ref = view.scope === 'vault' && currentUid !== OWNER_UID ? view.ref.child(FREE_VAULT_KEY) : view.ref.push();
+  const ref = view.scope === 'clips' && !owner() ? view.ref.child(FREE_CLIP_KEY) : view.ref.push();
   const group = currentGroup(view, destinationId);
   const item = { type, content, color: group?.color || M.defaultColor(ref.key), order: -now(), revision: 0,
     [view.scope === 'vault' ? 'keptAt' : 'createdAt']: firebase.database.ServerValue.TIMESTAMP };
   if (images?.length > 1) item.images = images;
   if (group) item.group = group;
-  if (view.scope === 'vault' && currentUid !== OWNER_UID) {
+  if (view.scope === 'clips' && !owner()) {
     const result = await ref.transaction(current => current === null ? item : undefined, undefined, false);
-    if (!result.committed) throw new Error(freeVaultMessage);
+    if (!result.committed) throw new Error(freeClipMessage);
   } else await ref.set(item);
   view.collapsed.delete(group?.id || ''); savePreferences(view); render(view);
   announce(view.scope === 'vault' ? 'Added to the vault.' : 'Clip added. It will expire in 10 minutes.');
@@ -1296,6 +1296,7 @@ function openVault(animate = false) {
 }
 function unlockVault() {
   if (!currentUid || activeScope === 'vault' || unlockTimer) return;
+  if (!owner()) { toast('The vault is available only to the owner.'); return; }
   // Block a second trigger while the two pre-warm frames are pending.
   unlockTimer = -1;
   const popup = $('unlockPopup');
