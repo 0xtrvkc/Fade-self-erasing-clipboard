@@ -17,7 +17,6 @@ const MAX_HEADER_LENGTH = 160;
 // Small attachments stay inline; larger ones are split into 512 KB database writes.
 const MAX_FILE_BYTES = 7_000_000;
 const CHUNK_BYTES = 512_000;
-const MAX_ATTACHMENTS = 5;
 const STORAGE_WARNING_BYTES = 1_000_000_000;
 // This UID must match the owner UID in database.rules.json. Client checks are only UX;
 // Firebase rules enforce the limit even when someone calls the database directly.
@@ -145,7 +144,7 @@ function requireConnection() {
 }
 function currentGroup(view, id) { return view.groups.find(g => g.id === id) || null; }
 function imageContents(item) { return M.imageContents(item); }
-function clipLabel(item) { return (item.title || item.filename || (item.type === 'image' ? `${imageContents(item).length} image(s)` : item.content)).slice(0, 90); }
+function clipLabel(item) { return (item.title || item.filename || (item.type === 'image' ? `${item.attachments?.length || imageContents(item).length} image(s)` : item.content)).slice(0, 90); }
 function blobRef(view, key) { return db.ref(`users/${view.scope === 'clips' && girlfriend ? OWNER_UID : currentUid}/fileData/${key}`); }
 async function cleanDetachedBlob(view, key) {
   if (!db || !currentUid) return;
@@ -182,7 +181,7 @@ function purgeExpired(key, item = scopes.clips.items[key]) {
   if (!connected || pendingExpiry.has(key)) return;
   pendingExpiry.add(key);
   scopes.clips.ref.child(key).transaction(current => M.isClip(current) && M.expired(current, 'clips', now()) ? null : undefined, undefined, false)
-    .then(result => { if (result.committed) { expiryQueue.delete(key); if (item?.content === 'chunked') cleanDetachedBlob(scopes.clips, key).catch(() => {}); } })
+    .then(result => { if (result.committed) { expiryQueue.delete(key); if (['chunked', 'album'].includes(item?.content)) cleanDetachedBlob(scopes.clips, key).catch(() => {}); } })
     .catch(() => { $('status').textContent = 'Expiry sync failed'; });
 }
 function listen(view) {
@@ -419,7 +418,7 @@ function updateSelection(view) {
   view.ui.Select.textContent = view.selecting ? 'Selecting' : 'Select';
   view.ui.SelectionCount.textContent = view.selected.size + ' selected';
   view.ui.BulkMove.disabled = view.ui.BulkDelete.disabled = view.selected.size === 0;
-  const imageCount = getSelected(view).reduce((sum, key) => sum + imageContents(view.items[key]).length, 0);
+  const imageCount = getSelected(view).reduce((sum, key) => sum + (view.items[key].attachments?.length || imageContents(view.items[key]).length), 0);
   view.ui.BulkShare.disabled = imageCount === 0;
   view.ui.BulkShare.textContent = imageCount > 1 ? `Share ${imageCount} images` : 'Share image';
   if (view.scope === 'clips') $('clipsBulkKeep').disabled = !owner() || view.selected.size === 0;
@@ -567,7 +566,7 @@ function createCard(view, key, item) {
   rec.content.id = view.scope + '-content-' + key;
   rec.expand.setAttribute('aria-controls', rec.content.id);
   const actions = element('div', 'clip-actions');
-  actions.append(button(item.type === 'file' ? 'Download' : item.type === 'image' && imageContents(item).length > 1 ? 'Open images' : 'Copy', e => rec.item.type === 'file' ? downloadFile(rec.item, view, rec.key) : imageContents(rec.item).length > 1 ? openImages(rec.item) : copyItem(rec.item, e.currentTarget)));
+  actions.append(button(item.type === 'file' ? 'Download' : item.content === 'album' || imageContents(item).length > 1 ? 'Open images' : 'Copy', e => rec.item.type === 'file' ? downloadFile(rec.item, view, rec.key) : rec.item.content === 'album' || imageContents(rec.item).length > 1 ? openImages(rec.item, view, rec.key) : copyItem(rec.item, e.currentTarget)));
   if (view.scope === 'clips' && owner()) {
     const keep = button('Keep');
     bindKeepHold(keep, () => keepItems(view, [key]));
@@ -597,7 +596,7 @@ function createCard(view, key, item) {
 function updateCard(view, rec, item) {
   const contentChanged = !rec.item || item.type !== rec.item.type || item.content !== rec.item.content || JSON.stringify(item.images) !== JSON.stringify(rec.item.images);
   rec.item = item;
-  rec.tag.textContent = item.type === 'image' && imageContents(item).length > 1 ? imageContents(item).length + ' images' : item.type;
+  rec.tag.textContent = item.type === 'image' && (item.attachments?.length || imageContents(item).length) > 1 ? (item.attachments?.length || imageContents(item).length) + ' images' : item.type;
   rec.el.style.setProperty('--card-color', girlfriend ? pinkColor(item.color || rec.key) : M.color(item.color) || M.defaultColor(rec.key));
   rec.el.setAttribute('aria-label', clipLabel(item));
   rec.handle.setAttribute('aria-label', 'Move clip: ' + clipLabel(item));
@@ -614,7 +613,7 @@ function updateCard(view, rec, item) {
     rec.content.classList.remove('expanded');
     rec.expand.textContent = 'Show more';
     rec.expand.setAttribute('aria-expanded', 'false');
-    renderContent(rec.content, item);
+    renderContent(rec.content, item, view, rec.key);
     const img = rec.content.querySelector('img');
     if (img) img.onload = () => checkExpand(rec);
     requestAnimationFrame(() => checkExpand(rec));
@@ -627,8 +626,53 @@ function checkExpand(rec) {
   const thumbnail = image && image.clientHeight + 3 < fullImageHeight;
   rec.expand.hidden = !rec.content.classList.contains('expanded') && rec.content.scrollHeight <= rec.content.clientHeight + 3 && !thumbnail;
 }
-function openImages(item) {
+async function albumImage(view, key, index, info) {
+  const parts = [];
+  for (let part = 0; part < info.parts; part++) {
+    const encoded = (await blobRef(view, key).child(`a${index}_${part}`).once('value')).val();
+    if (typeof encoded !== 'string') throw new Error('An image part is missing.');
+    const binary = atob(encoded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    parts.push(bytes);
+  }
+  return new File(parts, info.name || `image-${index + 1}`, {type: info.mime});
+}
+function showAlbumImage(img, view, key, index, info) {
+  albumImage(view, key, index, info).then(file => {
+    if (!img.isConnected) return;
+    const url = URL.createObjectURL(file);
+    img.src = url;
+    img.onload = () => URL.revokeObjectURL(url);
+  }).catch(() => { if (img.isConnected) img.alt = 'Image unavailable'; });
+}
+function openImages(item, view, key) {
   const body = openDialog(item.title || 'Image collection');
+  if (item.content === 'album') {
+    body.append(button('Share all images', () => shareImages(item.attachments.map((_, index) => ({album: true, view, key, index, item})))));
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) if (entry.isIntersecting) {
+        observer.unobserve(entry.target);
+        const index = Number(entry.target.dataset.index);
+        showAlbumImage(entry.target, view, key, index, item.attachments[index]);
+      }
+    }, {root: dialog, rootMargin: '200px'});
+    dialog.addEventListener('close', () => observer.disconnect(), {once: true});
+    item.attachments.forEach((info, index) => {
+      const block = element('div', 'gallery-item');
+      const img = element('img'); img.alt = info.name || 'Image ' + (index + 1); img.dataset.index = index;
+      block.append(img, element('span', 'file-name', info.name || `Image ${index + 1}`),
+        button('Copy image ' + (index + 1), async e => {
+          try { const file = await albumImage(view, key, index, info); await copyItem({type:'image', content: await readDataURL(file)}, e.currentTarget); }
+          catch { toast('Could not copy this image.'); }
+        }), button('Download', async () => {
+          try { const file = await albumImage(view, key, index, info); downloadBlob(file); }
+          catch { toast('Could not download this image.'); }
+        }));
+      body.append(block); observer.observe(img);
+    });
+    return;
+  }
   body.append(button('Share all images', () => shareImages(imageContents(item).map(content => ({type:'image', content})))));
   imageContents(item).forEach((content, index) => {
     const block = element('div', 'gallery-item');
@@ -637,7 +681,17 @@ function openImages(item) {
     body.append(block);
   });
 }
-function renderContent(el, item) {
+function renderContent(el, item, view, key) {
+  if (item.content === 'album' && Array.isArray(item.attachments)) {
+    const gallery = button('', () => openImages(item, view, key), 'image-collection');
+    gallery.setAttribute('aria-label', `Open all ${item.attachments.length} images`);
+    item.attachments.slice(0, 4).forEach((info, index) => {
+      const img = element('img'); img.alt = info.name || `Image ${index + 1}`;
+      gallery.append(img); showAlbumImage(img, view, key, index, info);
+    });
+    el.append(gallery, element('span', 'collection-count', `${item.attachments.length} images · Open collection`));
+    return;
+  }
   if (imageContents(item).length > 1) {
     const gallery = button('', () => openImages(item), 'image-collection');
     gallery.setAttribute('aria-label', 'Open all ' + imageContents(item).length + ' images');
@@ -1067,7 +1121,7 @@ function confirmDelete(view, keys) {
       }
       toast(`${restored} restored.${restored < deleted.length ? ' Other clips expired or were already restored.' : ''}`);
     }, 'Undo', 10000);
-    setTimeout(() => { for (const { key, item } of deleted) if (item.content === 'chunked') cleanDetachedBlob(view, key).catch(() => {}); }, 11_000);
+    setTimeout(() => { for (const { key, item } of deleted) if (['chunked', 'album'].includes(item.content)) cleanDetachedBlob(view, key).catch(() => {}); }, 11_000);
   }), 'danger-button'));
   body.append(actions);
 }
@@ -1188,6 +1242,12 @@ function downloadImage(item) {
   a.download = 'fade-image.' + extension;
   document.body.append(a); a.click(); a.remove();
 }
+function downloadBlob(file) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a'); a.href = url; a.download = file.name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
 async function downloadFile(item, view, key) {
   if (item.content !== 'chunked' && !/^data:application\/octet-stream;base64,[A-Za-z0-9+/=]+$/.test(item.content)) { toast('File unavailable.'); return; }
   try {
@@ -1219,13 +1279,18 @@ function imageFile(item, index) {
 }
 
 async function shareSelectedImages(view) {
-  const items = getSelected(view).flatMap(key => imageContents(view.items[key]).map(content => ({type:'image', content})));
+  const items = getSelected(view).flatMap(key => {
+    const item = view.items[key];
+    return item.content === 'album' ? item.attachments.map((_, index) => ({album: true, view, key, index, item}))
+      : imageContents(item).map(content => ({type:'image', content}));
+  });
   return shareImages(items);
 }
 async function shareImages(items) {
   if (!items.length) { toast('Select at least one image to share.'); return; }
   let files;
-  try { files = items.map(imageFile); }
+  try { files = await Promise.all(items.map((item, index) => item.album
+    ? albumImage(item.view, item.key, item.index, item.item.attachments[item.index]) : imageFile(item, index))); }
   catch (err) { toast(err.message); return; }
 
   if (navigator.share && (!navigator.canShare || navigator.canShare({ files }))) {
@@ -1239,7 +1304,7 @@ async function shareImages(items) {
   }
 
   if (items.length === 1) {
-    downloadImage(items[0]);
+    if (items[0].album) downloadBlob(files[0]); else downloadImage(items[0]);
     toast('Sharing is unavailable in this browser. The image was downloaded instead.');
     return;
   }
@@ -1284,6 +1349,7 @@ async function addItem(view, type, content, destinationId = view.ui.Destination.
     item.filename = attachment.filename; item.fileSize = attachment.fileSize;
     if (attachment.chunkCount) { item.chunkCount = attachment.chunkCount; item.ready = false; }
   }
+  if (type === 'image' && content === 'album') { item.attachments = attachment.attachments; item.ready = false; }
   if (images?.length > 1) item.images = images;
   if (group) item.group = group;
   if (view.scope === 'clips' && !owner() && !girlfriend) {
@@ -1331,17 +1397,42 @@ async function processAttachments(view, files, destinationId = view.ui.Destinati
     requireConnection();
     if (!files.length) return;
     if (view.adding) throw new Error('Wait for the current upload to finish.');
-    if (files.length > MAX_ATTACHMENTS) throw new Error('Choose up to five files at once.');
     if (view.scope === 'clips' && freeClipFull()) throw new Error(freeClipMessage);
     const incoming = files.reduce((sum, file) => sum + Math.ceil(file.size * 4 / 3) + 1000, 0);
     const projected = estimatedStorageBytes() + incoming;
     if (projected > STORAGE_WARNING_BYTES && !window.confirm(`Estimated workspace data would be ~${formatStorage(projected)}, over 1 GB. Firebase quota cannot be checked here. Continue?`)) return;
     view.adding = true; updateComposer(view);
     let added = 0;
+    const images = files.filter(file => /^image\//i.test(file.type));
+    if (images.length > 1) {
+      const attachments = images.map((file, index) => ({
+        name: (file.name || `image-${index + 1}`).replace(/[\x00-\x1f\x7f/\\]/g, '_').slice(0, 160),
+        size: file.size, parts: Math.max(1, Math.ceil(file.size / CHUNK_BYTES)), mime: file.type.toLowerCase()
+      }));
+      const key = await addItem(view, 'image', 'album', destinationId, null, {attachments});
+      try {
+        if (girlfriend) await blobRef(view, key).child('authorEmail').set(GIRLFRIEND_EMAIL);
+        for (let index = 0; index < images.length; index++) {
+          const file = images[index];
+          for (let part = 0; part < attachments[index].parts; part++) {
+            const data = await readDataURL(file.slice(part * CHUNK_BYTES, (part + 1) * CHUNK_BYTES));
+            await blobRef(view, key).child(`a${index}_${part}`).set(data.slice(data.indexOf(',') + 1));
+          }
+          (view.scope === 'vault' ? $('vaultStatus') : $('status')).textContent = `Uploading images: ${index + 1} / ${images.length}`;
+        }
+        await view.ref.child(key).update({ready: true, ...(view.scope === 'clips' ? {createdAt: firebase.database.ServerValue.TIMESTAMP} : {})});
+      } catch (error) {
+        try { await blobRef(view, key).remove(); } catch { /* Cleanup can race with expiry. */ }
+        try { await view.ref.child(key).remove(); } catch { /* Abandoned uploads expire. */ }
+        throw error;
+      }
+      added++;
+    }
     for (const file of files) {
-      const image = /^image\/(png|jpeg|webp|gif)$/i.test(file.type);
+      const image = /^image\//i.test(file.type);
+      if (images.length > 1 && image) continue;
       const filename = (file.name || 'attachment').replace(/[\x00-\x1f\x7f/\\]/g, '_').slice(0, 160);
-      if (file.size <= MAX_FILE_BYTES) {
+      if (file.size <= MAX_FILE_BYTES && (!image || /^image\/(png|jpeg|webp|gif)$/i.test(file.type))) {
         const encoded = await readDataURL(file);
         const content = image ? encoded : 'data:application/octet-stream;base64,' + encoded.slice(encoded.indexOf(',') + 1);
         await addItem(view, image ? 'image' : 'file', content, destinationId, null,
@@ -1365,7 +1456,7 @@ async function processAttachments(view, files, destinationId = view.ui.Destinati
       }
       added++;
     }
-    toast(added === 1 ? 'Attachment added.' : `${added} attachments added.`);
+    toast(added === 1 ? images.length > 1 ? `${images.length} images added in one clip.` : 'Attachment added.' : `${added} clips added.`);
   } catch (err) { toast(err.message || 'Could not add attachments. Please try again.'); }
   finally { view.adding = false; (view.scope === 'vault' ? $('vaultStatus') : $('status')).textContent = connected ? 'Synced' : 'Reconnecting…'; updateComposer(view); }
 }

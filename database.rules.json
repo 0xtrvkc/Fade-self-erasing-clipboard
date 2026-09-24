@@ -12,7 +12,7 @@
           ],
           "$clipId": {
             ".write": "auth != null && ((auth.uid === $uid && ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' || $clipId === 'one' || (data.exists() && !newData.exists()))) || ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' && auth.token.email === 'usa.prasoblarp@gmail.com' && auth.token.email_verified === true && (!data.exists() || data.child('authorEmail').val() === 'usa.prasoblarp@gmail.com') && (!newData.exists() || (newData.child('authorEmail').val() === 'usa.prasoblarp@gmail.com' && (newData.child('color').val() === '#c73f78' || newData.child('color').val() === '#d76b96' || newData.child('color').val() === '#a63770' || newData.child('color').val() === '#db5e8a' || newData.child('color').val() === '#b05291' || newData.child('color').val() === '#bd348b')))))",
-            ".validate": "newData.hasChildren(['type', 'content', 'createdAt']) && (newData.child('type').val() !== 'file' || newData.hasChildren(['filename', 'fileSize'])) && (!data.child('authorEmail').exists() || newData.child('authorEmail').val() === data.child('authorEmail').val()) && (newData.child('authorEmail').val() !== 'usa.prasoblarp@gmail.com' || (newData.child('color').val() === '#c73f78' || newData.child('color').val() === '#d76b96' || newData.child('color').val() === '#a63770' || newData.child('color').val() === '#db5e8a' || newData.child('color').val() === '#b05291' || newData.child('color').val() === '#bd348b'))",
+            ".validate": "newData.hasChildren(['type', 'content', 'createdAt']) && (newData.child('content').val() !== 'album' || (newData.child('type').val() === 'image' && newData.child('attachments').exists() && newData.child('ready').isBoolean())) && (newData.child('type').val() !== 'file' || newData.hasChildren(['filename', 'fileSize'])) && (!data.child('authorEmail').exists() || newData.child('authorEmail').val() === data.child('authorEmail').val()) && (newData.child('authorEmail').val() !== 'usa.prasoblarp@gmail.com' || (newData.child('color').val() === '#c73f78' || newData.child('color').val() === '#d76b96' || newData.child('color').val() === '#a63770' || newData.child('color').val() === '#db5e8a' || newData.child('color').val() === '#b05291' || newData.child('color').val() === '#bd348b'))",
             "authorEmail": {
               ".validate": "newData.isString() && newData.val() === 'usa.prasoblarp@gmail.com'"
             },
@@ -20,7 +20,7 @@
               ".validate": "newData.isString() && (newData.val() === 'text' || newData.val() === 'link' || newData.val() === 'image' || newData.val() === 'file')"
             },
             "content": {
-              ".validate": "newData.isString() && newData.val().length <= (newData.parent().child('type').val() === 'image' || newData.parent().child('type').val() === 'file' ? 9500000 : 100000) && (newData.parent().child('type').val() !== 'image' || newData.val().matches(/^data:image\\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/)) && (newData.parent().child('type').val() !== 'file' || (newData.val() === 'chunked' || newData.val().matches(/^data:application\\/octet-stream;base64,[A-Za-z0-9+/=]+$/)))"
+              ".validate": "newData.isString() && newData.val().length <= (newData.parent().child('type').val() === 'image' || newData.parent().child('type').val() === 'file' ? 9500000 : 100000) && (newData.parent().child('type').val() !== 'image' || (newData.val() === 'album' || newData.val().matches(/^data:image\\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/))) && (newData.parent().child('type').val() !== 'file' || (newData.val() === 'chunked' || newData.val().matches(/^data:application\\/octet-stream;base64,[A-Za-z0-9+/=]+$/)))"
             },
             "filename": {
               ".validate": "newData.parent().child('type').val() === 'file' && newData.isString() && newData.val().length > 0 && newData.val().length <= 160"
@@ -29,7 +29,7 @@
               ".validate": "newData.parent().child('type').val() === 'file' && newData.parent().child('content').val() === 'chunked' && newData.isNumber() && newData.val() > 0"
             },
             "ready": {
-              ".validate": "newData.parent().child('content').val() === 'chunked' && newData.isBoolean()"
+              ".validate": "(newData.parent().child('content').val() === 'chunked' || newData.parent().child('content').val() === 'album') && newData.isBoolean()"
             },
             "fileSize": {
               ".validate": "newData.parent().child('type').val() === 'file' && newData.isNumber() && newData.val() >= 0"
@@ -76,6 +76,17 @@
                 ".validate": false
               }
             },
+            "attachments": {
+              ".validate": "newData.parent().child('type').val() === 'image' && newData.parent().child('content').val() === 'album' && newData.hasChild('0')",
+              "$index": {
+                ".validate": "$index.matches(/^(0|[1-9][0-9]*)$/) && newData.hasChildren(['name', 'size', 'parts', 'mime'])",
+                "name": {".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 160"},
+                "size": {".validate": "newData.isNumber() && newData.val() >= 0"},
+                "parts": {".validate": "newData.isNumber() && newData.val() >= 1"},
+                "mime": {".validate": "newData.isString() && newData.val().matches(/^image\\/[a-zA-Z0-9.+-]+$/)"},
+                "$other": {".validate": false}
+              }
+            },
             "images": {
               ".validate": "newData.parent().child('type').val() === 'image' && newData.hasChildren(['0', '1'])",
               "$index": {
@@ -91,12 +102,12 @@
           ".read": "auth != null && auth.uid === $uid && $uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2'",
           "$clipId": {
             ".write": "auth != null && auth.uid === $uid && ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' || (data.exists() && !newData.exists()))",
-            ".validate": "newData.hasChildren(['type', 'content', 'keptAt']) && (newData.child('type').val() !== 'file' || newData.hasChildren(['filename', 'fileSize']))",
+            ".validate": "newData.hasChildren(['type', 'content', 'keptAt']) && (newData.child('content').val() !== 'album' || (newData.child('type').val() === 'image' && newData.child('attachments').exists() && newData.child('ready').isBoolean())) && (newData.child('type').val() !== 'file' || newData.hasChildren(['filename', 'fileSize']))",
             "type": {
               ".validate": "newData.isString() && (newData.val() === 'text' || newData.val() === 'link' || newData.val() === 'image' || newData.val() === 'file')"
             },
             "content": {
-              ".validate": "newData.isString() && newData.val().length <= (newData.parent().child('type').val() === 'image' || newData.parent().child('type').val() === 'file' ? 9500000 : 100000) && (newData.parent().child('type').val() !== 'image' || newData.val().matches(/^data:image\\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/)) && (newData.parent().child('type').val() !== 'file' || (newData.val() === 'chunked' || newData.val().matches(/^data:application\\/octet-stream;base64,[A-Za-z0-9+/=]+$/)))"
+              ".validate": "newData.isString() && newData.val().length <= (newData.parent().child('type').val() === 'image' || newData.parent().child('type').val() === 'file' ? 9500000 : 100000) && (newData.parent().child('type').val() !== 'image' || (newData.val() === 'album' || newData.val().matches(/^data:image\\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/))) && (newData.parent().child('type').val() !== 'file' || (newData.val() === 'chunked' || newData.val().matches(/^data:application\\/octet-stream;base64,[A-Za-z0-9+/=]+$/)))"
             },
             "filename": {
               ".validate": "newData.parent().child('type').val() === 'file' && newData.isString() && newData.val().length > 0 && newData.val().length <= 160"
@@ -105,7 +116,7 @@
               ".validate": "newData.parent().child('type').val() === 'file' && newData.parent().child('content').val() === 'chunked' && newData.isNumber() && newData.val() > 0"
             },
             "ready": {
-              ".validate": "newData.parent().child('content').val() === 'chunked' && newData.isBoolean()"
+              ".validate": "(newData.parent().child('content').val() === 'chunked' || newData.parent().child('content').val() === 'album') && newData.isBoolean()"
             },
             "fileSize": {
               ".validate": "newData.parent().child('type').val() === 'file' && newData.isNumber() && newData.val() >= 0"
@@ -152,6 +163,17 @@
                 ".validate": false
               }
             },
+            "attachments": {
+              ".validate": "newData.parent().child('type').val() === 'image' && newData.parent().child('content').val() === 'album' && newData.hasChild('0')",
+              "$index": {
+                ".validate": "$index.matches(/^(0|[1-9][0-9]*)$/) && newData.hasChildren(['name', 'size', 'parts', 'mime'])",
+                "name": {".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 160"},
+                "size": {".validate": "newData.isNumber() && newData.val() >= 0"},
+                "parts": {".validate": "newData.isNumber() && newData.val() >= 1"},
+                "mime": {".validate": "newData.isString() && newData.val().matches(/^image\\/[a-zA-Z0-9.+-]+$/)"},
+                "$other": {".validate": false}
+              }
+            },
             "images": {
               ".validate": "newData.parent().child('type').val() === 'image' && newData.hasChildren(['0', '1'])",
               "$index": {
@@ -165,15 +187,15 @@
         },
         "fileData": {
           "$clipId": {
-            ".read": "auth != null && (auth.uid === $uid || ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' && auth.token.email === 'usa.prasoblarp@gmail.com' && auth.token.email_verified === true))",
+            ".read": "auth != null && (auth.uid === $uid || ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' && auth.token.email === 'usa.prasoblarp@gmail.com' && auth.token.email_verified === true && root.child('users/' + $uid + '/clips/' + $clipId).exists()))",
             ".write": "auth != null && !newData.exists() && ((auth.uid === $uid && $uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2') || ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' && auth.token.email === 'usa.prasoblarp@gmail.com' && auth.token.email_verified === true && data.child('authorEmail').val() === 'usa.prasoblarp@gmail.com' && !root.child('users/' + $uid + '/kept/' + $clipId).exists()))",
             "authorEmail": {
               ".write": "auth != null && $uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' && auth.token.email === 'usa.prasoblarp@gmail.com' && auth.token.email_verified === true && !data.exists() && root.child('users/' + $uid + '/clips/' + $clipId + '/authorEmail').val() === 'usa.prasoblarp@gmail.com'",
               ".validate": "newData.isString() && newData.val() === 'usa.prasoblarp@gmail.com'"
             },
             "$part": {
-              ".write": "auth != null && ((auth.uid === $uid && $uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2') || ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' && auth.token.email === 'usa.prasoblarp@gmail.com' && auth.token.email_verified === true && root.child('users/' + $uid + '/clips/' + $clipId + '/authorEmail').val() === 'usa.prasoblarp@gmail.com')) && root.child('users/' + $uid + '/clips/' + $clipId + '/content').val() === 'chunked' && root.child('users/' + $uid + '/clips/' + $clipId + '/ready').val() === false",
-              ".validate": "$part.matches(/^(0|[1-9][0-9]*)$/) && newData.isString() && newData.val().length <= 700000 && newData.val().matches(/^[A-Za-z0-9+/=]+$/)"
+              ".write": "auth != null && ((auth.uid === $uid && $uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2') || ($uid === 'SagJ5qWZwEZWBijqebsWCPRBLHU2' && auth.token.email === 'usa.prasoblarp@gmail.com' && auth.token.email_verified === true && root.child('users/' + $uid + '/clips/' + $clipId + '/authorEmail').val() === 'usa.prasoblarp@gmail.com')) && (root.child('users/' + $uid + '/clips/' + $clipId + '/content').val() === 'chunked' || root.child('users/' + $uid + '/clips/' + $clipId + '/content').val() === 'album') && root.child('users/' + $uid + '/clips/' + $clipId + '/ready').val() === false",
+              ".validate": "$part.matches(/^(0|[1-9][0-9]*|a(0|[1-9][0-9]*)_(0|[1-9][0-9]*))$/) && newData.isString() && newData.val().length <= 700000 && newData.val().matches(/^[A-Za-z0-9+/=]+$/)"
             }
           }
         },

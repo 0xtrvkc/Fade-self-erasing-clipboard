@@ -19,6 +19,15 @@ test('attachments remain searchable by filename without indexing encoded bytes',
   assert.equal(M.matches(file, 'secret', 'all'), false);
   assert.equal(M.matches(file, 'invoice', 'image'), false);
 });
+test('gallery metadata remains one clip and estimates separately stored image bytes', () => {
+  const album = clip({type: 'image', content: 'album', ready: true, attachments: [
+    {name: 'one.png', mime: 'image/png', size: 1500, parts: 1},
+    {name: 'two.png', mime: 'image/png', size: 2400, parts: 1}
+  ]});
+  assert.deepEqual(M.ordered({gallery: album}, 'clips'), ['gallery']);
+  assert.equal(M.storageBytes({gallery: album}) >= 5200, true);
+  assert.equal(M.matches(album, 'image', 'image'), true);
+});
 test('expiry occurs at the exact ten-minute boundary and never applies to kept items', () => {
   assert.equal(M.expired(clip(), 'clips', time + M.TTL - 1), false);
   assert.equal(M.expired(clip(), 'clips', time + M.TTL), true);

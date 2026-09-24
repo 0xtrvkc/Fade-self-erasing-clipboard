@@ -468,6 +468,7 @@ body.image-drop-ready::after {
 .collection-count { display: block; font-size: 11px; margin-top: 6px; }
 .gallery-item { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 16px; }
 .gallery-item img { display: block; max-width: 100%; max-height: 50vh; object-fit: contain; margin-bottom: 8px; }
+.gallery-item img[data-index] { min-height: 120px; width: 100%; background: #182127; }
 .gallery-item button { margin-right: 8px; }
 
 /* Vault worksheet: shared column tracks keep every group aligned. */

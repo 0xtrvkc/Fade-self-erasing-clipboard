@@ -51,7 +51,8 @@
   function storageBytes(data) {
     const items = data || {};
     return new TextEncoder().encode(JSON.stringify(items)).length + Object.values(items).reduce((sum, item) =>
-      sum + (item && item.content === 'chunked' && Number.isFinite(item.fileSize) ? Math.ceil(item.fileSize * 4 / 3) : 0), 0);
+      sum + (item?.content === 'chunked' && Number.isFinite(item.fileSize) ? Math.ceil(item.fileSize * 4 / 3) : 0)
+        + (item?.content === 'album' && Array.isArray(item.attachments) ? item.attachments.reduce((bytes, image) => bytes + Math.ceil((image.size || 0) * 4 / 3), 0) : 0), 0);
   }
   function storageUsage(used, capacity) {
     const limit = finite(capacity) && capacity > 0 ? capacity : null;
