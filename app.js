@@ -144,7 +144,8 @@ function requireConnection() {
 }
 function currentGroup(view, id) { return view.groups.find(g => g.id === id) || null; }
 function imageContents(item) { return M.imageContents(item); }
-function clipLabel(item) { return (item.title || item.filename || (item.type === 'image' ? `${item.attachments?.length || imageContents(item).length} image(s)` : item.content)).slice(0, 90); }
+function albumAttachments(item) { return M.albumAttachments(item); }
+function clipLabel(item) { return (item.title || item.filename || (item.type === 'image' ? `${albumAttachments(item).length || imageContents(item).length} image(s)` : item.content)).slice(0, 90); }
 function blobRef(view, key) { return db.ref(`users/${view.scope === 'clips' && girlfriend ? OWNER_UID : currentUid}/fileData/${key}`); }
 async function cleanDetachedBlob(view, key) {
   if (!db || !currentUid) return;
@@ -418,7 +419,7 @@ function updateSelection(view) {
   view.ui.Select.textContent = view.selecting ? 'Selecting' : 'Select';
   view.ui.SelectionCount.textContent = view.selected.size + ' selected';
   view.ui.BulkMove.disabled = view.ui.BulkDelete.disabled = view.selected.size === 0;
-  const imageCount = getSelected(view).reduce((sum, key) => sum + (view.items[key].attachments?.length || imageContents(view.items[key]).length), 0);
+  const imageCount = getSelected(view).reduce((sum, key) => sum + (albumAttachments(view.items[key]).length || imageContents(view.items[key]).length), 0);
   view.ui.BulkShare.disabled = imageCount === 0;
   view.ui.BulkShare.textContent = imageCount > 1 ? `Share ${imageCount} images` : 'Share image';
   if (view.scope === 'clips') $('clipsBulkKeep').disabled = !owner() || view.selected.size === 0;
@@ -596,7 +597,7 @@ function createCard(view, key, item) {
 function updateCard(view, rec, item) {
   const contentChanged = !rec.item || item.type !== rec.item.type || item.content !== rec.item.content || JSON.stringify(item.images) !== JSON.stringify(rec.item.images);
   rec.item = item;
-  rec.tag.textContent = item.type === 'image' && (item.attachments?.length || imageContents(item).length) > 1 ? (item.attachments?.length || imageContents(item).length) + ' images' : item.type;
+  rec.tag.textContent = item.type === 'image' && (albumAttachments(item).length || imageContents(item).length) > 1 ? (albumAttachments(item).length || imageContents(item).length) + ' images' : item.type;
   rec.el.style.setProperty('--card-color', girlfriend ? pinkColor(item.color || rec.key) : M.color(item.color) || M.defaultColor(rec.key));
   rec.el.setAttribute('aria-label', clipLabel(item));
   rec.handle.setAttribute('aria-label', 'Move clip: ' + clipLabel(item));
@@ -639,26 +640,34 @@ async function albumImage(view, key, index, info) {
   return new File(parts, info.name || `image-${index + 1}`, {type: info.mime});
 }
 function showAlbumImage(img, view, key, index, info) {
-  albumImage(view, key, index, info).then(file => {
+  // Cards are assembled off-screen. Wait for attachment before a cached read can finish.
+  requestAnimationFrame(() => {
     if (!img.isConnected) return;
-    const url = URL.createObjectURL(file);
-    img.src = url;
-    img.onload = () => URL.revokeObjectURL(url);
-  }).catch(() => { if (img.isConnected) img.alt = 'Image unavailable'; });
+    albumImage(view, key, index, info).then(file => {
+      if (!img.isConnected) return;
+      const url = URL.createObjectURL(file);
+      img.onload = () => URL.revokeObjectURL(url);
+      img.onerror = () => { URL.revokeObjectURL(url); img.alt = 'Preview unavailable · Download image'; };
+      img.src = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }).catch(() => { if (img.isConnected) img.alt = 'Preview unavailable · Try Download'; });
+  });
 }
 function openImages(item, view, key) {
   const body = openDialog(item.title || 'Image collection');
   if (item.content === 'album') {
-    body.append(button('Share all images', () => shareImages(item.attachments.map((_, index) => ({album: true, view, key, index, item})))));
+    const attachments = albumAttachments(item);
+    if (!attachments.length) { body.append(element('p', 'dialog-error', 'Gallery metadata is unavailable. Reload and try again.')); return; }
+    body.append(button('Share all images', () => shareImages(attachments.map((_, index) => ({album: true, view, key, index, item})))));
     const observer = new IntersectionObserver(entries => {
       for (const entry of entries) if (entry.isIntersecting) {
         observer.unobserve(entry.target);
         const index = Number(entry.target.dataset.index);
-        showAlbumImage(entry.target, view, key, index, item.attachments[index]);
+        showAlbumImage(entry.target, view, key, index, attachments[index]);
       }
     }, {root: dialog, rootMargin: '200px'});
     dialog.addEventListener('close', () => observer.disconnect(), {once: true});
-    item.attachments.forEach((info, index) => {
+    attachments.forEach((info, index) => {
       const block = element('div', 'gallery-item');
       const img = element('img'); img.alt = info.name || 'Image ' + (index + 1); img.dataset.index = index;
       block.append(img, element('span', 'file-name', info.name || `Image ${index + 1}`),
@@ -682,14 +691,16 @@ function openImages(item, view, key) {
   });
 }
 function renderContent(el, item, view, key) {
-  if (item.content === 'album' && Array.isArray(item.attachments)) {
+  if (item.content === 'album') {
+    const attachments = albumAttachments(item);
+    if (!attachments.length) { el.textContent = 'Gallery metadata unavailable · Reload to retry'; return; }
     const gallery = button('', () => openImages(item, view, key), 'image-collection');
-    gallery.setAttribute('aria-label', `Open all ${item.attachments.length} images`);
-    item.attachments.slice(0, 4).forEach((info, index) => {
+    gallery.setAttribute('aria-label', `Open all ${attachments.length} images`);
+    attachments.slice(0, 4).forEach((info, index) => {
       const img = element('img'); img.alt = info.name || `Image ${index + 1}`;
       gallery.append(img); showAlbumImage(img, view, key, index, info);
     });
-    el.append(gallery, element('span', 'collection-count', `${item.attachments.length} images · Open collection`));
+    el.append(gallery, element('span', 'collection-count', `${attachments.length} images · Open collection`));
     return;
   }
   if (imageContents(item).length > 1) {
@@ -1281,7 +1292,7 @@ function imageFile(item, index) {
 async function shareSelectedImages(view) {
   const items = getSelected(view).flatMap(key => {
     const item = view.items[key];
-    return item.content === 'album' ? item.attachments.map((_, index) => ({album: true, view, key, index, item}))
+    return item.content === 'album' ? albumAttachments(item).map((_, index) => ({album: true, view, key, index, item}))
       : imageContents(item).map(content => ({type:'image', content}));
   });
   return shareImages(items);
@@ -1290,7 +1301,7 @@ async function shareImages(items) {
   if (!items.length) { toast('Select at least one image to share.'); return; }
   let files;
   try { files = await Promise.all(items.map((item, index) => item.album
-    ? albumImage(item.view, item.key, item.index, item.item.attachments[item.index]) : imageFile(item, index))); }
+    ? albumImage(item.view, item.key, item.index, albumAttachments(item.item)[item.index]) : imageFile(item, index))); }
   catch (err) { toast(err.message); return; }
 
   if (navigator.share && (!navigator.canShare || navigator.canShare({ files }))) {

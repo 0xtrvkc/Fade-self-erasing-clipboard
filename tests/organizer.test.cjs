@@ -27,6 +27,12 @@ test('gallery metadata remains one clip and estimates separately stored image by
   assert.deepEqual(M.ordered({gallery: album}, 'clips'), ['gallery']);
   assert.equal(M.storageBytes({gallery: album}) >= 5200, true);
   assert.equal(M.matches(album, 'image', 'image'), true);
+  assert.deepEqual(M.albumAttachments({...album, attachments: {'1': album.attachments[1], '0': album.attachments[0]}}), album.attachments);
+  assert.equal(M.storageBytes({gallery: {...album, attachments: {'1': album.attachments[1], '0': album.attachments[0]}}}) >= 5200, true);
+});
+test('legacy collections render when Firebase supplies numeric-keyed objects', () => {
+  const first = 'data:image/png;base64,YQ==', second = 'data:image/png;base64,Yg==';
+  assert.deepEqual(M.imageContents(clip({type: 'image', images: {'1': second, '0': first}, content: first})), [first, second]);
 });
 test('expiry occurs at the exact ten-minute boundary and never applies to kept items', () => {
   assert.equal(M.expired(clip(), 'clips', time + M.TTL - 1), false);

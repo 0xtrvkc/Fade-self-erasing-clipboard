@@ -19,8 +19,18 @@
   const color = value => [...COLORS, ...PINK_COLORS].some(c => c[1] === value) ? value : '';
   function imageContents(item) {
     if (item?.type !== 'image') return [];
-    const values = Array.isArray(item.images) && item.images.length ? item.images : [item.content];
+    const values = Array.isArray(item.images) ? item.images
+      : item.images && typeof item.images === 'object' ? Object.keys(item.images).sort((a, b) => Number(a) - Number(b)).map(key => item.images[key])
+      : [item.content];
     return values.filter(value => typeof value === 'string' && /^data:image\/(jpeg|png|webp|gif);base64,/i.test(value));
+  }
+  function albumAttachments(item) {
+    if (item?.type !== 'image' || item.content !== 'album') return [];
+    const images = item.attachments;
+    if (Array.isArray(images)) return images.filter(Boolean);
+    if (images && typeof images === 'object') return Object.keys(images)
+      .filter(key => /^(0|[1-9][0-9]*)$/.test(key)).sort((a, b) => Number(a) - Number(b)).map(key => images[key]).filter(Boolean);
+    return [];
   }
   function isClip(item) {
     return !!item && ['text', 'link', 'image', 'file'].includes(item.type) && typeof item.content === 'string';
@@ -52,7 +62,7 @@
     const items = data || {};
     return new TextEncoder().encode(JSON.stringify(items)).length + Object.values(items).reduce((sum, item) =>
       sum + (item?.content === 'chunked' && Number.isFinite(item.fileSize) ? Math.ceil(item.fileSize * 4 / 3) : 0)
-        + (item?.content === 'album' && Array.isArray(item.attachments) ? item.attachments.reduce((bytes, image) => bytes + Math.ceil((image.size || 0) * 4 / 3), 0) : 0), 0);
+        + (item?.content === 'album' ? albumAttachments(item).reduce((bytes, image) => bytes + Math.ceil((image.size || 0) * 4 / 3), 0) : 0), 0);
   }
   function storageUsage(used, capacity) {
     const limit = finite(capacity) && capacity > 0 ? capacity : null;
@@ -123,6 +133,6 @@
     try { path = decodeURIComponent(path); } catch { /* Keep the valid encoded path. */ }
     return url.hostname.replace(/^www\./i, '') + path;
   }
-  return { storageBytes, storageUsage, imageContents, TTL, COLORS, PINK_COLORS, color, isClip, timestamp, expired, group, groupId, groups, rank,
+  return { storageBytes, storageUsage, imageContents, albumAttachments, TTL, COLORS, PINK_COLORS, color, isClip, timestamp, expired, group, groupId, groups, rank,
     ordered, matches, defaultColor, movePlan, patchCurrent, safeLink, linkPreview };
 });
