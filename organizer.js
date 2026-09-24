@@ -23,7 +23,7 @@
     return values.filter(value => typeof value === 'string' && /^data:image\/(jpeg|png|webp|gif);base64,/i.test(value));
   }
   function isClip(item) {
-    return !!item && ['text', 'link', 'image'].includes(item.type) && typeof item.content === 'string';
+    return !!item && ['text', 'link', 'image', 'file'].includes(item.type) && typeof item.content === 'string';
   }
   function timestamp(item, scope) {
     const value = scope === 'vault' ? item.keptAt : item.createdAt;
@@ -49,7 +49,9 @@
   }
   function rank(item, scope) { return finite(item.order) ? item.order : -timestamp(item, scope); }
   function storageBytes(data) {
-    return new TextEncoder().encode(JSON.stringify(data || {})).length;
+    const items = data || {};
+    return new TextEncoder().encode(JSON.stringify(items)).length + Object.values(items).reduce((sum, item) =>
+      sum + (item && item.content === 'chunked' && Number.isFinite(item.fileSize) ? Math.ceil(item.fileSize * 4 / 3) : 0), 0);
   }
   function storageUsage(used, capacity) {
     const limit = finite(capacity) && capacity > 0 ? capacity : null;
@@ -74,7 +76,7 @@
   }
   function matches(item, query, type, groupName) {
     if (type && type !== 'all' && item.type !== type) return false;
-    const haystack = [item.title || '', item.type === 'image' ? 'image photo' : item.content,
+    const haystack = [item.title || '', item.filename || '', ['image', 'file'].includes(item.type) ? item.type === 'image' ? 'image photo' : 'file attachment' : item.content,
       groupName || group(item.group)?.name || ''].join(' ').toLocaleLowerCase();
     return !query || query.trim().toLocaleLowerCase().split(/\s+/).every(term => haystack.includes(term));
   }

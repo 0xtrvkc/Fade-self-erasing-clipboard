@@ -14,6 +14,11 @@ const firebaseConfig = {
 
 const M = FadeOrganizer;
 const MAX_HEADER_LENGTH = 160;
+// Small attachments stay inline; larger ones are split into 512 KB database writes.
+const MAX_FILE_BYTES = 7_000_000;
+const CHUNK_BYTES = 512_000;
+const MAX_ATTACHMENTS = 5;
+const STORAGE_WARNING_BYTES = 1_000_000_000;
 // This UID must match the owner UID in database.rules.json. Client checks are only UX;
 // Firebase rules enforce the limit even when someone calls the database directly.
 const OWNER_UID = 'SagJ5qWZwEZWBijqebsWCPRBLHU2';
@@ -140,7 +145,18 @@ function requireConnection() {
 }
 function currentGroup(view, id) { return view.groups.find(g => g.id === id) || null; }
 function imageContents(item) { return M.imageContents(item); }
-function clipLabel(item) { return (item.title || (item.type === 'image' ? `${imageContents(item).length} image(s)` : item.content)).slice(0, 90); }
+function clipLabel(item) { return (item.title || item.filename || (item.type === 'image' ? `${imageContents(item).length} image(s)` : item.content)).slice(0, 90); }
+function blobRef(view, key) { return db.ref(`users/${view.scope === 'clips' && girlfriend ? OWNER_UID : currentUid}/fileData/${key}`); }
+async function cleanDetachedBlob(view, key) {
+  if (!db || !currentUid) return;
+  const clip = await scopes.clips.ref.child(key).once('value');
+  if (clip.exists()) return;
+  if (owner()) {
+    const kept = await scopes.vault.ref.child(key).once('value');
+    if (kept.exists()) return;
+  }
+  await blobRef(view, key).remove();
+}
 function getSelected(view) { return [...view.selected].filter(key => !!view.items[key]); }
 function manualMode(view) { return view.sort === 'manual' && !view.query && view.type === 'all'; }
 
@@ -166,7 +182,7 @@ function purgeExpired(key, item = scopes.clips.items[key]) {
   if (!connected || pendingExpiry.has(key)) return;
   pendingExpiry.add(key);
   scopes.clips.ref.child(key).transaction(current => M.isClip(current) && M.expired(current, 'clips', now()) ? null : undefined, undefined, false)
-    .then(result => { if (result.committed) expiryQueue.delete(key); })
+    .then(result => { if (result.committed) { expiryQueue.delete(key); if (item?.content === 'chunked') cleanDetachedBlob(scopes.clips, key).catch(() => {}); } })
     .catch(() => { $('status').textContent = 'Expiry sync failed'; });
 }
 function listen(view) {
@@ -178,6 +194,10 @@ function listen(view) {
     view.items = Object.create(null);
     for (const [key, item] of Object.entries(data)) {
       if (!M.isClip(item)) continue;
+      if (item.ready === false) {
+        if (now() - M.timestamp(item, view.scope) > 24 * 60 * 60 * 1000 && view.scope === 'clips') purgeExpired(key, item);
+        continue;
+      }
       if (M.expired(item, view.scope, now())) { purgeExpired(key, item); continue; }
       if (view.scope === 'clips') expiryQueue.delete(key);
       view.items[key] = item;
@@ -547,7 +567,7 @@ function createCard(view, key, item) {
   rec.content.id = view.scope + '-content-' + key;
   rec.expand.setAttribute('aria-controls', rec.content.id);
   const actions = element('div', 'clip-actions');
-  actions.append(button(item.type === 'image' && imageContents(item).length > 1 ? 'Open images' : 'Copy', e => imageContents(rec.item).length > 1 ? openImages(rec.item) : copyItem(rec.item, e.currentTarget)));
+  actions.append(button(item.type === 'file' ? 'Download' : item.type === 'image' && imageContents(item).length > 1 ? 'Open images' : 'Copy', e => rec.item.type === 'file' ? downloadFile(rec.item, view, rec.key) : imageContents(rec.item).length > 1 ? openImages(rec.item) : copyItem(rec.item, e.currentTarget)));
   if (view.scope === 'clips' && owner()) {
     const keep = button('Keep');
     bindKeepHold(keep, () => keepItems(view, [key]));
@@ -631,6 +651,8 @@ function renderContent(el, item) {
     const img = document.createElement('img');
     img.src = item.content; img.alt = item.title || 'Clipboard image'; img.loading = 'lazy';
     el.append(img);
+  } else if (item.type === 'file') {
+    el.append(element('strong', 'file-name', item.filename || 'Attachment'), element('span', 'file-size', ' · ' + formatStorage(item.fileSize || 0)));
   } else if (item.type === 'link' && M.safeLink(item.content)) {
     const a = element('a', 'compact-link', M.linkPreview(item.content));
     a.href = M.safeLink(item.content); a.target = '_blank'; a.rel = 'noopener noreferrer';
@@ -1045,6 +1067,7 @@ function confirmDelete(view, keys) {
       }
       toast(`${restored} restored.${restored < deleted.length ? ' Other clips expired or were already restored.' : ''}`);
     }, 'Undo', 10000);
+    setTimeout(() => { for (const { key, item } of deleted) if (item.content === 'chunked') cleanDetachedBlob(view, key).catch(() => {}); }, 11_000);
   }), 'danger-button'));
   body.append(actions);
 }
@@ -1165,6 +1188,25 @@ function downloadImage(item) {
   a.download = 'fade-image.' + extension;
   document.body.append(a); a.click(); a.remove();
 }
+async function downloadFile(item, view, key) {
+  if (item.content !== 'chunked' && !/^data:application\/octet-stream;base64,[A-Za-z0-9+/=]+$/.test(item.content)) { toast('File unavailable.'); return; }
+  try {
+    const parts = [];
+    const count = item.content === 'chunked' ? item.chunkCount : 1;
+    for (let index = 0; index < count; index++) {
+      const encoded = item.content === 'chunked' ? (await blobRef(view, key).child(String(index)).once('value')).val() : item.content.split(',')[1];
+      if (typeof encoded !== 'string') throw new Error('A file part is missing.');
+      const binary = atob(encoded);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      parts.push(bytes);
+    }
+    const url = URL.createObjectURL(new Blob(parts, { type: 'application/octet-stream' }));
+    const a = document.createElement('a'); a.href = url; a.download = item.filename || 'attachment';
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch { toast('Could not download this file. Check your connection and try again.'); }
+}
 
 function imageFile(item, index) {
   const match = /^data:image\/(png|jpeg|webp|gif);base64,/i.exec(item.content);
@@ -1227,17 +1269,21 @@ async function copyItem(item, btn) {
   }
 }
 function looksLikeUrl(text) { return /^(https?:\/\/|www\.)\S+$/i.test(text.trim()); }
-async function addItem(view, type, content, destinationId = view.ui.Destination.value, images = null) {
+async function addItem(view, type, content, destinationId = view.ui.Destination.value, images = null, attachment = null) {
   requireConnection();
   if (view.scope === 'vault' && !owner()) throw new Error('Only the owner can use the vault.');
   if (view.scope === 'clips' && freeClipFull()) throw new Error(freeClipMessage);
-  if (typeof content !== 'string' || (type === 'image' ? content.length > 1500000 : content.length > 100000)) throw new Error('Clip is too large. Use a smaller image or shorter text.');
-  if (images && (images.length > 5 || images.some(image => image.length > 1500000))) throw new Error('Choose up to five images, each under 1 MB.');
+  if (typeof content !== 'string' || (type === 'image' || type === 'file' ? content.length > 9500000 : content.length > 100000)) throw new Error('Inline clip is too large. Try attaching the file again.');
+  if (images && (images.length > 5 || images.some(image => image.length > 1500000))) throw new Error('Older image collections are limited to five small images.');
   const ref = view.scope === 'clips' && !owner() && !girlfriend ? view.ref.child(FREE_CLIP_KEY) : view.ref.push();
   const group = currentGroup(view, destinationId);
   const item = { type, content, color: girlfriend ? pinkColor(ref.key) : group?.color || M.defaultColor(ref.key), order: -now(), revision: 0,
     [view.scope === 'vault' ? 'keptAt' : 'createdAt']: firebase.database.ServerValue.TIMESTAMP };
   if (girlfriend) item.authorEmail = GIRLFRIEND_EMAIL;
+  if (type === 'file') {
+    item.filename = attachment.filename; item.fileSize = attachment.fileSize;
+    if (attachment.chunkCount) { item.chunkCount = attachment.chunkCount; item.ready = false; }
+  }
   if (images?.length > 1) item.images = images;
   if (group) item.group = group;
   if (view.scope === 'clips' && !owner() && !girlfriend) {
@@ -1247,6 +1293,7 @@ async function addItem(view, type, content, destinationId = view.ui.Destination.
   view.collapsed.delete(group?.id || ''); savePreferences(view); render(view);
   announce(view.scope === 'vault' ? 'Added to the vault.' : 'Clip added. It will expire in 10 minutes.');
   if (view.query || view.type !== 'all') toast('Clip added. Clear your filters to see all clips.');
+  return ref.key;
 }
 function updateComposer(view) {
   view.ui.Add.disabled = view.adding || !view.ui.Input.value.trim();
@@ -1267,23 +1314,60 @@ async function submitText(view) {
   } catch (err) { toast(err.message || 'Could not add this clip. Your draft is still here.'); }
   finally { view.adding = false; updateComposer(view); }
 }
-async function processImages(view, files, destinationId = view.ui.Destination.value) {
+function readDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read ' + file.name));
+    reader.onerror = () => reject(new Error('Could not read ' + file.name));
+    reader.readAsDataURL(file);
+  });
+}
+function estimatedStorageBytes() {
+  // This is workspace data only; other Firebase data and billing quotas are not exposed here.
+  return Object.values(scopes).reduce((sum, view) => sum + M.storageBytes(view.items), 0);
+}
+async function processAttachments(view, files, destinationId = view.ui.Destination.value) {
   try {
     requireConnection();
     if (!files.length) return;
-    if (files.length > 5 || files.some(file => file.size > 1000000)) throw new Error('Choose up to five images, each under 1 MB.');
-    const images = await Promise.all(files.map(file => {
-      if (!/^image\/(png|jpeg|webp|gif)$/i.test(file.type)) throw new Error('Choose JPEG, PNG, WebP, or GIF images.');
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read an image.'));
-        reader.onerror = () => reject(new Error('Could not read an image.'));
-        reader.readAsDataURL(file);
-      });
-    }));
-    await addItem(view, 'image', images[0], destinationId, images);
-    toast(images.length > 1 ? images.length + ' images added in one clip.' : 'Image added.');
-  } catch (err) { toast(err.message || 'Could not add images. Please try again.'); }
+    if (view.adding) throw new Error('Wait for the current upload to finish.');
+    if (files.length > MAX_ATTACHMENTS) throw new Error('Choose up to five files at once.');
+    if (view.scope === 'clips' && freeClipFull()) throw new Error(freeClipMessage);
+    const incoming = files.reduce((sum, file) => sum + Math.ceil(file.size * 4 / 3) + 1000, 0);
+    const projected = estimatedStorageBytes() + incoming;
+    if (projected > STORAGE_WARNING_BYTES && !window.confirm(`Estimated workspace data would be ~${formatStorage(projected)}, over 1 GB. Firebase quota cannot be checked here. Continue?`)) return;
+    view.adding = true; updateComposer(view);
+    let added = 0;
+    for (const file of files) {
+      const image = /^image\/(png|jpeg|webp|gif)$/i.test(file.type);
+      const filename = (file.name || 'attachment').replace(/[\x00-\x1f\x7f/\\]/g, '_').slice(0, 160);
+      if (file.size <= MAX_FILE_BYTES) {
+        const encoded = await readDataURL(file);
+        const content = image ? encoded : 'data:application/octet-stream;base64,' + encoded.slice(encoded.indexOf(',') + 1);
+        await addItem(view, image ? 'image' : 'file', content, destinationId, null,
+          image ? null : { filename, fileSize: file.size });
+      } else {
+        const chunkCount = Math.ceil(file.size / CHUNK_BYTES);
+        const key = await addItem(view, 'file', 'chunked', destinationId, null, { filename, fileSize: file.size, chunkCount });
+        try {
+          if (girlfriend) await blobRef(view, key).child('authorEmail').set(GIRLFRIEND_EMAIL);
+          for (let i = 0; i < chunkCount; i++) {
+            const data = await readDataURL(file.slice(i * CHUNK_BYTES, (i + 1) * CHUNK_BYTES));
+            await blobRef(view, key).child(String(i)).set(data.slice(data.indexOf(',') + 1));
+            (view.scope === 'vault' ? $('vaultStatus') : $('status')).textContent = `Uploading ${filename}: ${formatStorage(Math.min(file.size, (i + 1) * CHUNK_BYTES))} / ${formatStorage(file.size)}`;
+          }
+          await view.ref.child(key).update({ ready: true, ...(view.scope === 'clips' ? { createdAt: firebase.database.ServerValue.TIMESTAMP } : {}) });
+        } catch (error) {
+          try { await blobRef(view, key).remove(); } catch { /* Cleanup can race with expiry. */ }
+          try { await view.ref.child(key).remove(); } catch { /* Incomplete uploads expire automatically. */ }
+          throw error;
+        }
+      }
+      added++;
+    }
+    toast(added === 1 ? 'Attachment added.' : `${added} attachments added.`);
+  } catch (err) { toast(err.message || 'Could not add attachments. Please try again.'); }
+  finally { view.adding = false; (view.scope === 'vault' ? $('vaultStatus') : $('status')).textContent = connected ? 'Synced' : 'Reconnecting…'; updateComposer(view); }
 }
 
 let keyBuffer = '', lastKeyAt = 0, keyBufferTarget = null;
@@ -1377,11 +1461,11 @@ document.addEventListener('paste', e => {
   if (editor && editor !== view.ui.Input) return;
   const items = e.clipboardData?.items;
   if (!items) return;
-  const images = Array.from(items).filter(it => it.type.startsWith('image/')).map(it => it.getAsFile()).filter(Boolean);
-  if (images.length) {
+  const attachments = Array.from(items).filter(it => it.kind === 'file').map(it => it.getAsFile()).filter(Boolean);
+  if (attachments.length) {
     e.preventDefault();
     const destinationId = view.ui.Destination.value;
-    processImages(view, images, destinationId);
+    processAttachments(view, attachments, destinationId);
     return;
   }
   if (!editor) {
@@ -1419,11 +1503,11 @@ document.addEventListener('drop', e => {
   if (!draggingFiles(e)) return;
   e.preventDefault();
   clearImageDropState();
-  const files = Array.from(e.dataTransfer?.files || []).filter(file => file.type.startsWith('image/'));
-  if (!files.length) { toast('Drop a JPEG, PNG, WebP, or GIF image.'); return; }
+  const files = Array.from(e.dataTransfer?.files || []);
+  if (!files.length) return;
   const view = scopes[activeScope];
   const destinationId = view.ui.Destination.value;
-  processImages(view, files, destinationId);
+  processAttachments(view, files, destinationId);
 });
 window.addEventListener('blur', clearImageDropState);
 
@@ -1462,7 +1546,7 @@ function bindView(view) {
     const destinationId = view.ui.Destination.value;
     view.ui.File.value = '';
     if (!files.length) return;
-    await processImages(view, files, destinationId);
+    await processAttachments(view, files, destinationId);
   };
   render(view);
 }

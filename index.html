@@ -42,7 +42,7 @@
     <div class="toolbar" aria-label="Clipboard controls">
       <label class="search"><span class="sr-only">Search clips</span><input id="clipsSearch" type="search" placeholder="Search clips, titles, groups…" autocomplete="off"></label>
       <button class="new-group" id="clipsNewGroup" type="button" hidden>+ Group</button>
-      <select id="clipsType" aria-label="Filter by content type"><option value="all">All types</option><option value="text">Text</option><option value="link">Links</option><option value="image">Images</option></select>
+      <select id="clipsType" aria-label="Filter by content type"><option value="all">All types</option><option value="text">Text</option><option value="link">Links</option><option value="image">Images</option><option value="file">Files</option></select>
       <select id="clipsSort" aria-label="Sort clips"><option value="manual">Your order</option><option value="newest">Newest</option><option value="oldest">Oldest</option></select>
       <button class="view-toggle" id="clipsLayout" type="button" aria-label="Use list layout">List</button>
       <button class="select-toggle" id="clipsSelect" type="button" aria-pressed="false">Select</button>
@@ -65,8 +65,8 @@
     <label class="sr-only" for="clipsInput">Add a temporary clip</label>
     <textarea id="clipsInput" placeholder="Paste or type text / a link…" rows="1"></textarea>
     <div class="composer-row">
-      <button class="image-button" id="clipsImage" type="button" aria-label="Add image" title="Add image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg></button>
-      <input id="clipsFile" type="file" accept="image/*" multiple hidden>
+      <button class="image-button" id="clipsImage" type="button" aria-label="Add images or files" title="Add images or files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg></button>
+      <input id="clipsFile" type="file" multiple hidden>
       <select id="clipsDestination" aria-label="Group for new clips" hidden><option value="">Unfiled</option></select>
       <span class="composer-hint">Enter to add · Shift+Enter for a new line</span>
       <button class="primary" id="clipsAdd" type="button" disabled>Add clip</button>
@@ -82,7 +82,7 @@
     <div class="toolbar" aria-label="Vault controls">
       <label class="search"><span class="sr-only">Search vault</span><input id="vaultSearch" type="search" placeholder="Search clips, titles, groups…" autocomplete="off"></label>
       <button class="new-group" id="vaultNewGroup" type="button">+ Group</button>
-      <select id="vaultType" aria-label="Filter by content type"><option value="all">All types</option><option value="text">Text</option><option value="link">Links</option><option value="image">Images</option></select>
+      <select id="vaultType" aria-label="Filter by content type"><option value="all">All types</option><option value="text">Text</option><option value="link">Links</option><option value="image">Images</option><option value="file">Files</option></select>
       <select id="vaultSort" aria-label="Sort vault"><option value="manual">Your order</option><option value="title-asc">Title A–Z</option><option value="title-desc">Title Z–A</option><option value="newest">Date: newest first</option><option value="oldest">Date: oldest first</option></select>
       <button class="view-toggle" id="vaultLayout" type="button" aria-label="Use list layout">List</button>
       <button class="select-toggle" id="vaultSelect" type="button" aria-pressed="false">Select</button>
@@ -105,8 +105,8 @@
     <label class="sr-only" for="vaultInput">Add to vault</label>
     <textarea id="vaultInput" placeholder="Add a note or link to the vault…" rows="1"></textarea>
     <div class="composer-row">
-      <button class="image-button" id="vaultImage" type="button" aria-label="Add image" title="Add image"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg></button>
-      <input id="vaultFile" type="file" accept="image/*" multiple hidden>
+      <button class="image-button" id="vaultImage" type="button" aria-label="Add images or files" title="Add images or files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg></button>
+      <input id="vaultFile" type="file" multiple hidden>
       <label for="vaultDestination">Add to</label><select id="vaultDestination" aria-label="Group for new clips"><option value="">Unfiled</option></select>
       <span class="composer-hint">Enter to add · Shift+Enter for a new line</span>
       <button class="primary" id="vaultAdd" type="button" disabled>Add to vault</button>
@@ -159,7 +159,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
-<script src="organizer.js?v=20260920-storage-sort"></script>
-<script src="app.js?v=20260920-storage-sort"></script>
+<script src="organizer.js?v=20260924-chunks"></script>
+<script src="app.js?v=20260924-chunks"></script>
 </body>
 </html>

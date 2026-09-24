@@ -12,6 +12,13 @@ test('legacy records remain usable without organization metadata', () => {
   assert.equal(M.isClip(items.old), true);
   assert.equal(M.timestamp(items.newest, 'clips'), time);
 });
+test('attachments remain searchable by filename without indexing encoded bytes', () => {
+  const file = clip({ type: 'file', filename: 'invoice.pdf', fileSize: 2048, content: 'data:application/octet-stream;base64,c2VjcmV0' });
+  assert.equal(M.isClip(file), true);
+  assert.equal(M.matches(file, 'invoice', 'file'), true);
+  assert.equal(M.matches(file, 'secret', 'all'), false);
+  assert.equal(M.matches(file, 'invoice', 'image'), false);
+});
 test('expiry occurs at the exact ten-minute boundary and never applies to kept items', () => {
   assert.equal(M.expired(clip(), 'clips', time + M.TTL - 1), false);
   assert.equal(M.expired(clip(), 'clips', time + M.TTL), true);

@@ -9,6 +9,11 @@ test('a temporary clip expires at ten minutes; missing timestamps are not delete
   assert.equal(isExpired({createdAt: now - TTL_MS + 1}, now - TTL_MS), false);
   assert.equal(isExpired({content: 'old record'}, now - TTL_MS), false);
 });
+test('an unfinished upload gets a 24 hour cleanup window', () => {
+  const cutoff = 100_000_000;
+  assert.equal(isExpired({createdAt: cutoff - 60_000, ready: false}, cutoff), false);
+  assert.equal(isExpired({createdAt: cutoff - 24 * 60 * 60 * 1000, ready: false}, cutoff), true);
+});
 
 test('server purge rechecks the current record before deleting', async () => {
   const cutoff = 500_000;

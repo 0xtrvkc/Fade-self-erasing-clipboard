@@ -6,11 +6,12 @@ A cross-device clipboard with Google sign-in. Temporary clips fade after ten min
 
 ## How it works
 
-- Add text, links, or images on one device and copy them on another.
+- Add text, links, images, PDFs, SVGs, ZIPs, or other files on one device. Download attachments on another device.
 - Search, sort, pin, label, and organize clips into groups. Layout and collapsed-group preferences are stored in each browser; clipboard content is stored in Firebase.
 - Temporary clips disappear from the app after ten minutes. While an app session is open, it also tries to remove expired records from Firebase.
 - The owner can move clips into the private vault with **Keep**. Type `iii` to open it. This shortcut hides the vault screen; it is not a password.
-- Images can be copied or shared with the device's native share controls. Clipboard permissions and browser support vary.
+- Images can be copied or shared with the device's native share controls. Other file types download with their original names. Clipboard permissions and browser support vary.
+- Select, paste, or drag up to five attachments at a time. There is no app-level per-file size cap. Files over 7 MB are uploaded in 512 KB chunks and downloaded on demand; smaller JPEG, PNG, WebP, and GIF images retain their inline preview. Larger images and SVGs download as files.
 
 ## Access
 
@@ -27,7 +28,7 @@ The invited account is identified by its verified Google identity in `app.js` an
 ## Use Fade
 
 1. Open the app and sign in with Google. Sign in with the same account on each of your own devices.
-2. Type or paste a clip, then select **Add clip**. You can also select an image.
+2. Type or paste a clip, then select **Add clip**. Use the attachment button to select images or other files.
 3. Tap **Copy** on another device before the temporary clip expires.
 4. If you are the owner, use **Keep** to save a clip to the vault. Type `iii` in the clipboard composer to open the vault.
 
@@ -35,9 +36,9 @@ On desktop, **Enter** adds a clip and **Shift+Enter** makes a new line. On touch
 
 ## Data and expiry
 
-Firebase Realtime Database stores each account's clips under `users/<uid>/clips` and the owner's kept items under `users/<owner uid>/kept`. The invited account uses the owner's temporary clipboard path. Database rules control who can read and write each path; hiding a button in the app is not an access control.
+Firebase Realtime Database stores each account's clip metadata and smaller attachments under `users/<uid>/clips` and the owner's kept items under `users/<owner uid>/kept`. The invited account uses the owner's temporary clipboard path. Database rules control who can read and write each path; hiding a button in the app is not an access control. Files are base64 encoded, so they use roughly one-third more database space than their original size. Large-file chunks are stored separately under `users/<uid>/fileData/<clipId>`; the board only syncs metadata. Very large files can still fail because of available database space, browser memory, upload time, or network limits. The app estimates visible workspace use and warns when an upload would put it above 1 GB; it cannot see your project-wide Firebase usage or enforce the plan quota. See Firebase Console → Realtime Database → Usage for actual usage. Large-file bytes download only when someone selects Download. Smaller inline images still sync with the board.
 
-Expiry is enforced in the open app. A scheduled Cloud Function is included for server-side cleanup while no browser is open, but deploying it requires a Blaze plan. On Spark, expired records may remain in Firebase until an app session clears them. The vault has no expiry. Keep a separate backup of anything you cannot afford to lose.
+Expiry is enforced in the open app. A large file starts its ten-minute life after its upload finishes; abandoned uploads are cleaned after 24 hours when the app is opened. A scheduled Cloud Function is included for server-side cleanup while no browser is open, but deploying it requires a Blaze plan. On Spark, expired records and orphaned chunks can remain in Firebase if every browser closes before cleanup. Reopen Fade to clear expired records; check Firebase usage after large uploads. The scheduled cleanup function handles expiry and related chunks when deployed on Blaze. The vault has no expiry; moving a file there makes it permanent until deleted. Keep a separate backup of anything you cannot afford to lose.
 
 Fade does not provide end-to-end encryption. Firebase project administrators can access stored content. The Firebase web configuration in `app.js` identifies the project; it is not a private service-account key.
 
