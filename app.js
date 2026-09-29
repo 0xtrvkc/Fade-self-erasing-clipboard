@@ -38,7 +38,6 @@ function vaultCapacity() {
   catch { return VAULT_CAPACITY_BYTES; }
 }
 let db, auth, currentUid = null, connected = false, clockOffset = 0, activeScope = 'clips', toastTimeout, unlockTimer, unlockFinishTimer;
-let vaultModuleAnimations = [], vaultModuleSources = [];
 let drag = null;
 const now = () => Date.now() + clockOffset;
 const $ = id => document.getElementById(id);
@@ -269,7 +268,6 @@ function initFirebase() {
 function stopSession() {
   connected = false;
   clearTimeout(unlockTimer); clearTimeout(unlockFinishTimer); unlockTimer = unlockFinishTimer = null;
-  clearVaultModules();
   document.body.classList.remove('vault-breaching');
   $('unlockPopup').classList.remove('show');
   $('vault').classList.remove('vault-entering', 'vault-preparing');
@@ -1497,57 +1495,10 @@ function openVault(animate = false) {
   scopes.vault.ui.Search.focus();
   requestAnimationFrame(() => { for (const rec of scopes.vault.cards.values()) checkExpand(rec); });
 }
-function clearVaultModules() {
-  for (const animation of vaultModuleAnimations) animation.cancel();
-  vaultModuleAnimations = [];
-  for (const [source, oldOpacity] of vaultModuleSources) source.style.opacity = oldOpacity;
-  vaultModuleSources = [];
-  $('unlockPopup').querySelector('.module-layer').replaceChildren();
-}
-function assembleVaultModules() {
-  clearVaultModules();
-  const layer = $('unlockPopup').querySelector('.module-layer');
-  const selectors = '.brand, .header-inner > .connection, .toolbar > :not([hidden]), .board-heading, .group-heading, .clip, .empty-state:not([hidden]), .composer textarea, .composer-row > :not([hidden])';
-  const sources = [...$('mainWorkspace').querySelectorAll(selectors)]
-    .filter(node => {
-      const rect = node.getBoundingClientRect();
-      return rect.width > 8 && rect.height > 8 && rect.bottom > 0 && rect.top < innerHeight && rect.right > 0 && rect.left < innerWidth && getComputedStyle(node).visibility !== 'hidden';
-    }).slice(0, 24);
-  const cols = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(sources.length))));
-  const rows = Math.ceil(sources.length / cols);
-  const gapX = Math.min(112, innerWidth / (cols + 1));
-  const gapY = Math.min(74, innerHeight / (rows + 1));
-  sources.forEach((source, index) => {
-    const rect = source.getBoundingClientRect();
-    const tile = document.createElement('div');
-    tile.className = 'vault-module';
-    tile.textContent = (source.innerText || source.textContent || '').trim().slice(0, 140) || '▣';
-    tile.style.left = `${rect.left}px`;
-    tile.style.top = `${rect.top}px`;
-    tile.style.width = `${rect.width}px`;
-    tile.style.height = `${Math.min(rect.height, 160)}px`;
-    layer.append(tile);
-    vaultModuleSources.push([source, source.style.opacity]);
-    source.style.opacity = '0';
-    const column = index % cols, row = Math.floor(index / cols);
-    const x = innerWidth / 2 + (column - (cols - 1) / 2) * gapX;
-    const y = innerHeight / 2 + (row - (rows - 1) / 2) * gapY;
-    const dx = x - rect.left - rect.width / 2;
-    const dy = y - rect.top - Math.min(rect.height, 160) / 2;
-    const scale = Math.min(.58, gapX * .72 / rect.width, gapY * .72 / Math.min(rect.height, 160));
-    const duration = 3500 - Math.min(index * 24, 420);
-    vaultModuleAnimations.push(tile.animate([
-      { transform: 'translate3d(0,0,0) scale(1)', opacity: 1, offset: 0 },
-      { transform: `translate3d(${dx * .25}px,${dy * .18}px,0) scale(.88)`, opacity: 1, offset: .34 },
-      { transform: `translate3d(${dx * .78}px,${dy * .8}px,0) scale(${Math.max(scale, .12) * 1.28})`, opacity: 1, offset: .83 },
-      { transform: `translate3d(${dx}px,${dy}px,0) scale(${Math.max(scale, .12)})`, opacity: 0, offset: 1 }
-    ], { duration, delay: Math.min(index * 24, 420), easing: 'cubic-bezier(.3,0,.28,1)', fill: 'forwards' }));
-  });
-}
 function unlockVault() {
   if (!currentUid || activeScope === 'vault' || unlockTimer) return;
   if (!owner()) { toast('The vault is available only to the owner.'); return; }
-  // Capture visible pieces once; each moves on the compositor to its own door slot.
+  // The two ASCII hand layers animate independently; no per-frame JavaScript.
   unlockTimer = -1;
   const popup = $('unlockPopup');
   const workspace = $('mainWorkspace');
@@ -1556,15 +1507,13 @@ function unlockVault() {
   workspace.inert = true;
   requestAnimationFrame(() => {
     if (!currentUid) { unlockTimer = null; return; }
-    assembleVaultModules();
     document.body.classList.add('vault-breaching');
     popup.classList.add('show');
     unlockTimer = setTimeout(() => {
       if (currentUid) openVault(true);
-    }, 4150);
+    }, 4000);
     unlockFinishTimer = setTimeout(() => {
       unlockTimer = unlockFinishTimer = null;
-      clearVaultModules();
       popup.classList.remove('show');
       vault.classList.remove('vault-entering');
       document.body.classList.remove('vault-breaching');

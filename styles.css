@@ -144,51 +144,50 @@ input[type=search]::-webkit-search-cancel-button { cursor: pointer; }
 #vault .clip.selected { outline-color: var(--cyan); }
 #vault .bulk-bar { background: #132f30; }
 #vaultExit { flex: none; }
-/* Five-second vault entry: independent compositor-driven modules assemble into a door. */
+/* Five-second ASCII hands: two independent transforms, one contact, then the vault. */
 #unlockPopup {
   position: fixed; inset: 0; z-index: 4000; pointer-events: none;
-  visibility: hidden; overflow: hidden;
+  visibility: hidden; overflow: hidden; background: #080b0c;
+  color: #d9d6c7;
 }
-#unlockPopup.show { visibility: visible; }
-body.vault-breaching #mainWorkspace { animation: workspace-to-door 4.2s linear both; }
-.module-layer { position: absolute; inset: 0; z-index: 1; }
-.vault-module {
-  position: absolute; box-sizing: border-box; overflow: hidden; pointer-events: none;
-  padding: 8px; white-space: pre-wrap; word-break: break-word;
-  border: 1px solid #70918d; background: #e9e6dc; color: #132126;
-  font: 500 12px/1.35 monospace; box-shadow: 0 2px 8px #0003;
+#unlockPopup.show { visibility: visible; animation: adam-curtain 5s linear both; }
+body.vault-breaching #mainWorkspace { animation: adam-workspace-fade .3s linear both; }
+.adam-hand { position: absolute; left: 50%; top: 50%; width: max-content; opacity: 0; }
+.hand-drawing {
+  margin: 0; white-space: pre; user-select: none;
+  font: 600 clamp(6px, 1vw, 13px)/1.2 monospace;
+  letter-spacing: 0; color: #e6e3d5;
 }
-.mechanical-door { position: absolute; inset: 0; z-index: 2; display: flex; perspective: 900px; }
-.door-wing {
-  position: relative; width: 50%; height: 100%; flex: 0 0 50%;
-  display: flex; align-items: center;
-  background: repeating-linear-gradient(0deg, #0b151a 0 70px, #253b42 71px 72px, #101d23 73px 140px);
-  border: 1px solid #456168; opacity: 0;
+.adam-right .hand-drawing { transform: scaleX(-1); }
+#unlockPopup.show .adam-left { animation: adam-left-reach 5s cubic-bezier(.28,.02,.26,1) both; }
+#unlockPopup.show .adam-right { animation: adam-right-reach 5s cubic-bezier(.28,.02,.26,1) both; }
+.adam-contact {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  color: #fff8df; font: 700 clamp(16px, 2vw, 25px)/1 monospace; opacity: 0;
 }
-.door-left { justify-content: flex-end; border-right: 2px solid #73b8b2; transform-origin: left center; }
-.door-right { justify-content: flex-start; border-left: 2px solid #73b8b2; transform-origin: right center; }
-.door-mark { margin: 0 24px; color: #ace5db; font: 600 clamp(11px, 2vw, 16px)/1.5 monospace; letter-spacing: .18em; white-space: nowrap; }
-#unlockPopup.show .door-left { animation: door-left-travel 5s cubic-bezier(.35,0,.2,1) both; }
-#unlockPopup.show .door-right { animation: door-right-travel 5s cubic-bezier(.35,0,.2,1) both; }
-.door-seam { position: absolute; z-index: 2; left: calc(50% - 2px); top: 0; bottom: 0; width: 4px; background: #a3eee2; opacity: 0; }
-#unlockPopup.show .door-seam { animation: door-seam-life 5s linear both; }
-#vault.vault-entering { animation: vault-arrive .85s ease-out both; }
-@keyframes workspace-to-door {
-  0%, 75% { opacity: 1; }
-  84%, 100% { opacity: 0; }
+#unlockPopup.show .adam-contact { animation: adam-touch 5s linear both; }
+#vault.vault-entering { animation: adam-vault-arrive .8s ease-out both; }
+@keyframes adam-workspace-fade { from { opacity: 1; } to { opacity: 0; } }
+@keyframes adam-curtain {
+  0%, 79% { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
 }
-@keyframes door-left-travel {
-  0%, 61% { opacity: 0; transform: translate3d(-17%,0,0) scaleX(.8); }
-  72%, 83% { opacity: 1; transform: translate3d(0,0,0) scaleX(1); }
-  100% { opacity: 1; transform: translate3d(-105%,0,0) scaleX(1); }
+@keyframes adam-left-reach {
+  0%, 8% { opacity: 0; transform: translate3d(calc(-100% - 55vw),-50%,0); }
+  18% { opacity: 1; }
+  61% { opacity: 1; transform: translate3d(calc(-100% - 30px),-50%,0); }
+  68%, 80% { opacity: 1; transform: translate3d(calc(-100% - 7px),-50%,0); }
+  96%, 100% { opacity: 0; transform: translate3d(calc(-100% - 7px),-50%,0); }
 }
-@keyframes door-right-travel {
-  0%, 63% { opacity: 0; transform: translate3d(17%,0,0) scaleX(.8); }
-  74%, 83% { opacity: 1; transform: translate3d(0,0,0) scaleX(1); }
-  100% { opacity: 1; transform: translate3d(105%,0,0) scaleX(1); }
+@keyframes adam-right-reach {
+  0%, 11% { opacity: 0; transform: translate3d(55vw,-50%,0); }
+  21% { opacity: 1; }
+  61% { opacity: 1; transform: translate3d(30px,-50%,0); }
+  68%, 80% { opacity: 1; transform: translate3d(7px,-50%,0); }
+  96%, 100% { opacity: 0; transform: translate3d(7px,-50%,0); }
 }
-@keyframes door-seam-life { 0%, 72% { opacity: 0; } 78%, 84% { opacity: 1; } 91%, 100% { opacity: 0; } }
-@keyframes vault-arrive { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
+@keyframes adam-touch { 0%, 66% { opacity: 0; } 69%, 78% { opacity: 1; } 82%, 100% { opacity: 0; } }
+@keyframes adam-vault-arrive { from { opacity: 0; transform: scale(.99); } to { opacity: 1; transform: scale(1); } }
 #actionDialog { padding: 0; color: #f5f1e6; background: #22272b; border: 1px solid #56626b; border-radius: 14px; width: min(520px, calc(100% - 32px)); max-height: 88vh; max-height: 88dvh; overflow-y: auto; }
 #actionDialog::backdrop { background: #000a; backdrop-filter: blur(3px); }
 .dialog-header { position: sticky; top: 0; background: #22272b; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 12px; z-index: 1; }

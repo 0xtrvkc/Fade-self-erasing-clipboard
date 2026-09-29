@@ -23,7 +23,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260929-mechanical-door">
+<link rel="stylesheet" href="styles.css?v=20260929-adam-hands">
 </head>
 <body>
 <section id="signIn" class="sign-in" aria-labelledby="signInTitle">
@@ -114,12 +114,25 @@
   </div></footer>
 </section>
 <div id="unlockPopup" aria-hidden="true">
-  <div class="module-layer"></div>
-  <div class="mechanical-door">
-    <div class="door-wing door-left"><span class="door-mark">FADE // III</span></div>
-    <div class="door-wing door-right"><span class="door-mark">VAULT // OPEN</span></div>
-  </div>
-  <div class="door-seam"></div>
+  <div class="adam-hand adam-left"><pre class="hand-drawing">         __..---..__
+   __.-'  _    _    `-._
+ _/   .-'  `--' `-.     `-.___
+/   _/   .--.     \          `----.___
+|  /    /    \     `-.___            _`>
+|  |    \____/         `--..______.-'
+ \  `-._        _..--'
+  `-.__ `------'
+       `--..__</pre></div>
+  <div class="adam-hand adam-right"><pre class="hand-drawing">         __..---..__
+   __.-'  _    _    `-._
+ _/   .-'  `--' `-.     `-.___
+/   _/   .--.     \          `----.___
+|  /    /    \     `-.___            _`>
+|  |    \____/         `--..______.-'
+ \  `-._        _..--'
+  `-.__ `------'
+       `--..__</pre></div>
+  <span class="adam-contact" aria-hidden="true">*</span>
 </div>
 <dialog id="keepWarning" closedby="none" aria-labelledby="keepWarningTitle" aria-describedby="keepWarningDescription">
   <div class="warning-shell">
@@ -147,6 +160,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="organizer.js?v=20260924-gallery-fix"></script>
-<script src="app.js?v=20260929-mechanical-door"></script>
+<script src="app.js?v=20260929-adam-hands"></script>
 </body>
 </html>
