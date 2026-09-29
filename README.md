@@ -2,7 +2,7 @@
 
 A cross-device clipboard with Google sign-in. Temporary clips fade after ten minutes. The owner also has a private Keep vault for clips that should stay.
 
-The `iii` vault entry runs for five seconds: two cropped ASCII hands enter from opposite sides, touch at the fingertips, then reveal the vault. It uses only transform and opacity animations, with no canvas or per-frame JavaScript. The entry runs even when reduced motion is enabled on the device.
+The `iii` vault entry runs for five seconds: two distinct ASCII hand silhouettes enter from opposite sides, nearly touch at the fingertips, then reveal the vault. It uses only transform and opacity animations, with no canvas or per-frame JavaScript. The entry runs even when reduced motion is enabled on the device.
 
 [Open Fade](https://0xtrvkc.github.io/Fade-self-erasing-clipboard/)
 
@@ -81,3 +81,5 @@ These local checks do not replace testing the published Firebase rules with sepa
 ## License
 
 MIT.
+
+The hand silhouettes were adapted from the dot-art wallpaper in [RayhaanFay/xfce-creation-of-adam](https://github.com/RayhaanFay/xfce-creation-of-adam), which credits the wallpaper to @samdape. The wallpaper image itself is not bundled.

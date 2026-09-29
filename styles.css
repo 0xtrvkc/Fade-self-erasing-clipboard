@@ -152,13 +152,14 @@ input[type=search]::-webkit-search-cancel-button { cursor: pointer; }
 }
 #unlockPopup.show { visibility: visible; animation: adam-curtain 5s linear both; }
 body.vault-breaching #mainWorkspace { animation: adam-workspace-fade .3s linear both; }
-.adam-hand { position: absolute; left: 50%; top: 50%; width: max-content; opacity: 0; }
+.adam-hand { position: absolute; left: 50%; width: max-content; opacity: 0; font-size: clamp(5px, 1.2vw, 15px); }
+.adam-left { top: calc(50% - 2.5em); }
+.adam-right { top: calc(50% + 2em); }
 .hand-drawing {
   margin: 0; white-space: pre; user-select: none;
-  font: 600 clamp(6px, 1vw, 13px)/1.2 monospace;
+  font: 600 1em/1.12 monospace;
   letter-spacing: 0; color: #e6e3d5;
 }
-.adam-right .hand-drawing { transform: scaleX(-1); }
 #unlockPopup.show .adam-left { animation: adam-left-reach 5s cubic-bezier(.28,.02,.26,1) both; }
 #unlockPopup.show .adam-right { animation: adam-right-reach 5s cubic-bezier(.28,.02,.26,1) both; }
 .adam-contact {
