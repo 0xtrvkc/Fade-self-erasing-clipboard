@@ -205,9 +205,6 @@ body.vault-breaching #mainWorkspace {
 @keyframes portal-code-flow { from { transform: translateY(-30px); } to { transform: translateY(30px); } }
 @keyframes portal-label-life { 0%, 83% { opacity: 0; } 87%, 94% { opacity: 1; } 99%, 100% { opacity: 0; } }
 @keyframes vault-arrive { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
-@media (prefers-reduced-motion: reduce) {
-  body.vault-breaching #mainWorkspace, #unlockPopup.show, #unlockPopup.show * { animation: none !important; }
-}
 #actionDialog { padding: 0; color: #f5f1e6; background: #22272b; border: 1px solid #56626b; border-radius: 14px; width: min(520px, calc(100% - 32px)); max-height: 88vh; max-height: 88dvh; overflow-y: auto; }
 #actionDialog::backdrop { background: #000a; backdrop-filter: blur(3px); }
 .dialog-header { position: sticky; top: 0; background: #22272b; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 12px; z-index: 1; }

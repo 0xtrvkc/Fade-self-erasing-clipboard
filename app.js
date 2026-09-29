@@ -1498,7 +1498,6 @@ function openVault(animate = false) {
 function unlockVault() {
   if (!currentUid || activeScope === 'vault' || unlockTimer) return;
   if (!owner()) { toast('The vault is available only to the owner.'); return; }
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { openVault(); return; }
   // Keep the existing layout intact while it contracts, so cards never pile up.
   unlockTimer = -1;
   const popup = $('unlockPopup');
