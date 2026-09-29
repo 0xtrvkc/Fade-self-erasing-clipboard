@@ -144,7 +144,7 @@ input[type=search]::-webkit-search-cancel-button { cursor: pointer; }
 #vault .clip.selected { outline-color: var(--cyan); }
 #vault .bulk-bar { background: #132f30; }
 #vaultExit { flex: none; }
-/* Ten-second TTY scene: one pre-rendered code layer moves on the compositor. */
+/* Ten-second TTY scene: one text node types on each animation frame when needed. */
 #unlockPopup {
   position: fixed; inset: 0; z-index: 4000; visibility: hidden;
   pointer-events: none; overflow: hidden; background: #000; color: #c9d5c9;
@@ -153,13 +153,14 @@ input[type=search]::-webkit-search-cancel-button { cursor: pointer; }
 #unlockPopup.show { visibility: visible; will-change: transform; animation: tty-curtain 10s linear both; }
 body.vault-breaching #mainWorkspace { animation: tty-cut .08s steps(1,end) both; }
 .tty-header { position: absolute; z-index: 2; left: 14px; top: 10px; font-size: clamp(12px,1.1vw,15px); background: #000; }
-.tty-window { position: absolute; inset: 40px 14px 15px; overflow: hidden; }
-.tty-stream {
-  position: absolute; left: 0; top: calc(100% - 1.3em); margin: 0;
-  color: #c9d5c9; white-space: pre; font: 500 clamp(11px,1.2vw,16px)/1.25 'Courier New', Courier, monospace;
-  will-change: transform;
+.tty-window { position: absolute; inset: 40px 14px 15px; overflow: hidden; scrollbar-width: none; }
+.tty-source[hidden] { display: none; }
+.tty-output {
+  margin: 0; color: #c9d5c9; white-space: pre;
+  font: 500 clamp(11px,1.2vw,16px)/1.25 'Courier New', Courier, monospace;
 }
-#unlockPopup.show .tty-stream { animation: tty-code-scroll 10s linear both; }
+.tty-caret { color: #baffc2; }
+#unlockPopup.show .tty-caret { animation: tty-blink .55s steps(1,end) infinite; }
 .tty-final {
   position: absolute; z-index: 3; inset: 0; display: flex; flex-direction: column; justify-content: center;
   gap: 13px; padding: clamp(16px,4vw,55px); overflow: hidden; white-space: nowrap;
@@ -173,17 +174,6 @@ body.vault-breaching #mainWorkspace { animation: tty-cut .08s steps(1,end) both;
 #unlockPopup.show .tty-cursor { animation: tty-blink .65s steps(1,end) 8.7s 2; }
 #vault.vault-entering { animation: tty-vault-arrive .8s ease-out both; }
 @keyframes tty-cut { to { opacity: 0; } }
-@keyframes tty-code-scroll {
-  0% { transform: translate3d(0,0,0); }
-  10% { transform: translate3d(0,-1%,0); }
-  20% { transform: translate3d(0,-3%,0); }
-  30% { transform: translate3d(0,-7%,0); }
-  40% { transform: translate3d(0,-15%,0); }
-  50% { transform: translate3d(0,-30%,0); }
-  60% { transform: translate3d(0,-45%,0); }
-  70% { transform: translate3d(0,-60%,0); }
-  80%,100% { transform: translate3d(0,-75%,0); }
-}
 @keyframes tty-final-life { 0%,79% { opacity: 0; } 80%,100% { opacity: 1; } }
 @keyframes tty-blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
 @keyframes tty-curtain { 0%,92% { transform: translate3d(0,0,0); } 100% { transform: translate3d(0,-105%,0); visibility: hidden; } }

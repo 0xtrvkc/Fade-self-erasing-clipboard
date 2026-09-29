@@ -2,7 +2,7 @@
 
 A cross-device clipboard with Google sign-in. Temporary clips fade after ten minutes. The owner also has a private Keep vault for clips that should stay.
 
-The `iii` vault entry runs for ten seconds as a full-screen Linux-style TTY. A pre-rendered stream of local-only commands starts slowly, accelerates through second five, stays fast until second eight, then shows a vault mount before the terminal slides away. One text layer scrolls via CSS transform; there is no per-frame JavaScript or external connection.
+The `iii` vault entry runs for ten seconds as a full-screen Linux-style TTY. Local-only commands type character by character beside a blinking cursor: slow at first, accelerating through second five, then fast through second eight. A vault mount appears for the final two seconds before the terminal slides away. The text is theatrical; it runs no commands and makes no external connection.
 
 [Open Fade](https://0xtrvkc.github.io/Fade-self-erasing-clipboard/)
 

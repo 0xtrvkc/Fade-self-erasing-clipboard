@@ -23,7 +23,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260929-tty-ten-second">
+<link rel="stylesheet" href="styles.css?v=20260929-tty-typed">
 </head>
 <body>
 <section id="signIn" class="sign-in" aria-labelledby="signInTitle">
@@ -115,7 +115,7 @@
 </section>
 <div id="unlockPopup" aria-hidden="true">
   <div class="tty-header">FADE Linux 1.0&nbsp;&nbsp; tty1</div>
-  <div class="tty-window"><pre class="tty-stream">FADE Linux (tty1)
+  <div class="tty-window"><pre id="ttySource" hidden>FADE Linux (tty1)
 fade login: iii
 Password: ********
 Last login: local console
@@ -237,7 +237,7 @@ root@fade:~# stat /var/lib/fade/inode/0102
 [  4.068] vaultfs: map 0x00003538 -&gt; owner namespace
 root@fade:~# printf &quot;%08x\n&quot; 429765
 00069ec2
-[  4.179] keyring: read complete; local=1 remote=0</pre></div>
+[  4.179] keyring: read complete; local=1 remote=0</pre><pre class="tty-output"><span id="ttyTyped"></span><span class="tty-caret">_</span></pre></div>
   <div class="tty-final">
     <div>root@fade:~# mount /dev/fade-vault /mnt/iii</div>
     <div>mount: /mnt/iii: mounted</div>
@@ -271,6 +271,6 @@ root@fade:~# printf &quot;%08x\n&quot; 429765
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="organizer.js?v=20260924-gallery-fix"></script>
-<script src="app.js?v=20260929-tty-ten-second"></script>
+<script src="app.js?v=20260929-tty-typed"></script>
 </body>
 </html>

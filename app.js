@@ -38,9 +38,38 @@ function vaultCapacity() {
   catch { return VAULT_CAPACITY_BYTES; }
 }
 let db, auth, currentUid = null, connected = false, clockOffset = 0, activeScope = 'clips', toastTimeout, unlockTimer, unlockFinishTimer;
+let ttyFrame = 0;
+function stopVaultTyping() {
+  cancelAnimationFrame(ttyFrame); ttyFrame = 0;
+  $('ttyTyped').textContent = '';
+  document.querySelector('.tty-window').scrollTop = 0;
+}
+function startVaultTyping() {
+  stopVaultTyping();
+  const typed = $('ttyTyped').appendChild(document.createTextNode(''));
+  const window = document.querySelector('.tty-window');
+  const started = performance.now();
+  let shown = 0;
+  const frame = now => {
+    const seconds = Math.min(8, (now - started) / 1000);
+    // Cubic acceleration reaches full speed at 5s; 5–8s uses a constant rate.
+    const portion = seconds <= 5 ? .37 * (seconds / 5) ** 3 : .37 + .21 * (seconds - 5);
+    const next = Math.min(ttyScript.length, Math.floor(ttyScript.length * portion));
+    if (next > shown) {
+      const chunk = ttyScript.slice(shown, next);
+      typed.appendData(chunk);
+      shown = next;
+      if (chunk.includes('\n')) window.scrollTop = window.scrollHeight;
+    }
+    if (seconds < 8 && currentUid) ttyFrame = requestAnimationFrame(frame);
+    else ttyFrame = 0;
+  };
+  ttyFrame = requestAnimationFrame(frame);
+}
 let drag = null;
 const now = () => Date.now() + clockOffset;
 const $ = id => document.getElementById(id);
+const ttyScript = $('ttySource').textContent;
 const scopes = {};
 const dialog = $('actionDialog');
 const pendingExpiry = new Set();
@@ -268,6 +297,7 @@ function initFirebase() {
 function stopSession() {
   connected = false;
   clearTimeout(unlockTimer); clearTimeout(unlockFinishTimer); unlockTimer = unlockFinishTimer = null;
+  stopVaultTyping();
   document.body.classList.remove('vault-breaching');
   $('unlockPopup').classList.remove('show');
   $('vault').classList.remove('vault-entering', 'vault-preparing');
@@ -1498,7 +1528,7 @@ function openVault(animate = false) {
 function unlockVault() {
   if (!currentUid || activeScope === 'vault' || unlockTimer) return;
   if (!owner()) { toast('The vault is available only to the owner.'); return; }
-  // The TTY scroll is CSS-driven; JavaScript only handles the vault handoff.
+  // A single text node receives timed character batches; the cursor stays after it.
   unlockTimer = -1;
   const popup = $('unlockPopup');
   const workspace = $('mainWorkspace');
@@ -1509,11 +1539,13 @@ function unlockVault() {
     if (!currentUid) { unlockTimer = null; return; }
     document.body.classList.add('vault-breaching');
     popup.classList.add('show');
+    startVaultTyping();
     unlockTimer = setTimeout(() => {
       if (currentUid) openVault(true);
     }, 9200);
     unlockFinishTimer = setTimeout(() => {
       unlockTimer = unlockFinishTimer = null;
+      stopVaultTyping();
       popup.classList.remove('show');
       vault.classList.remove('vault-entering');
       document.body.classList.remove('vault-breaching');
