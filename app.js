@@ -1498,7 +1498,7 @@ function openVault(animate = false) {
 function unlockVault() {
   if (!currentUid || activeScope === 'vault' || unlockTimer) return;
   if (!owner()) { toast('The vault is available only to the owner.'); return; }
-  // Terminal scene is CSS-driven; JavaScript only handles the vault handoff.
+  // The TTY scroll is CSS-driven; JavaScript only handles the vault handoff.
   unlockTimer = -1;
   const popup = $('unlockPopup');
   const workspace = $('mainWorkspace');
@@ -1511,13 +1511,13 @@ function unlockVault() {
     popup.classList.add('show');
     unlockTimer = setTimeout(() => {
       if (currentUid) openVault(true);
-    }, 4000);
+    }, 9200);
     unlockFinishTimer = setTimeout(() => {
       unlockTimer = unlockFinishTimer = null;
       popup.classList.remove('show');
       vault.classList.remove('vault-entering');
       document.body.classList.remove('vault-breaching');
-    }, 5000);
+    }, 10000);
   });
 }
 function closeVault() {

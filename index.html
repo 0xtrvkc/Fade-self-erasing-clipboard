@@ -23,7 +23,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260929-hacker-terminal">
+<link rel="stylesheet" href="styles.css?v=20260929-tty-ten-second">
 </head>
 <body>
 <section id="signIn" class="sign-in" aria-labelledby="signInTitle">
@@ -114,21 +114,135 @@
   </div></footer>
 </section>
 <div id="unlockPopup" aria-hidden="true">
-  <div class="hack-shell">
-    <div class="hack-head"><span>FADE // PRIVATE TERMINAL</span><span>SECTOR III <b class="hack-led"></b></span></div>
-    <div class="hack-console">
-      <div class="hack-prompt">&gt; initiating hidden route<span class="hack-caret">_</span></div>
-      <div class="hack-line" style="--at:.35s"><span>00</span> probing local session ...</div>
-      <div class="hack-line" style="--at:.67s"><span>01</span> resolving owner key / III</div>
-      <div class="hack-line" style="--at:1.02s"><span>02</span> firewall response: ACCESS DENIED</div>
-      <div class="hack-line" style="--at:1.34s"><span>03</span> rerouting via hidden channel ...</div>
-      <div class="hack-line" style="--at:1.68s"><span>04</span> memory gate / bypass requested</div>
-      <div class="hack-line" style="--at:2.03s"><span>05</span> decrypting vault index ........</div>
-      <div class="hack-line" style="--at:2.34s"><span>06</span> override accepted: OWNER</div>
-      <div class="hack-line" style="--at:2.62s"><span>07</span> opening permanent workspace</div>
-      <div class="hack-alert"><small>SECURITY EVENT // III</small><strong>ACCESS OVERRIDE</strong><span>VAULT CHANNEL OPEN</span></div>
-    </div>
-    <div class="hack-foot"><div class="hack-progress"><i></i></div><span>NO EXTERNAL CONNECTION · LOCAL TRANSITION</span></div>
+  <div class="tty-header">FADE Linux 1.0&nbsp;&nbsp; tty1</div>
+  <div class="tty-window"><pre class="tty-stream">FADE Linux (tty1)
+fade login: iii
+Password: ********
+Last login: local console
+root@fade:~# uname -a
+FADE Linux local 1.0 #III SMP
+root@fade:~# systemctl status vault.service
+● vault.service - private workspace gate
+   Loaded: loaded (/etc/fade/vault.service)
+   Active: inactive (awaiting owner key)
+root@fade:~# journalctl -u vault.service -n 16
+[  0.019] console: switching to tty1
+[  0.041] loop: local volume initialized
+[  0.063] vaultfs: journal replay complete
+root@fade:~# find /var/lib/fade -type f | sort
+root@fade:~# probe /dev/tty0 --local
+[  0.257] loop: sector 0001 -&gt; 0x1eef
+[  0.294] vaultfs: scan inode=00034 status=OK
+root@fade:~# stat /var/lib/fade/auth/0003
+  File: /var/lib/fade/index/0004  Blocks: 24
+[  0.405] vaultfs: map 0x0000028f -&gt; owner namespace
+root@fade:~# printf &quot;%08x\n&quot; 24558
+00006feb
+[  0.516] route: probe complete; local=1 remote=0
+root@fade:~# map /dev/sync1 --local
+[  0.590] block: sector 000a -&gt; 0x3556
+[  0.627] keyring: read inode=00187 status=OK
+root@fade:~# stat /var/lib/fade/tty/0012
+  File: /var/lib/fade/loop/0013  Blocks: 60
+[  0.738] vaultfs: map 0x0000072a -&gt; owner namespace
+root@fade:~# printf &quot;%08x\n&quot; 61395
+0000ffd0
+[  0.849] cache: map complete; local=1 remote=0
+root@fade:~# scan /dev/inode2 --local
+[  0.923] mount: sector 0013 -&gt; 0x4bbd
+[  0.960] route: check inode=00340 status=OK
+root@fade:~# stat /var/lib/fade/sync/0021
+  File: /var/lib/fade/block/0022  Blocks: 96
+[  1.071] vaultfs: map 0x00000bc5 -&gt; owner namespace
+root@fade:~# printf &quot;%08x\n&quot; 98232
+00018fb5
+[  1.182] vaultfs: scan complete; local=1 remote=0
+root@fade:~# read /dev/auth3 --local
+[  1.256] index: sector 001c -&gt; 0x6224
+[  1.293] cache: index inode=00493 status=OK
+root@fade:~# stat /var/lib/fade/inode/0030
+  File: /var/lib/fade/mount/0031  Blocks: 132
+[  1.404] vaultfs: map 0x00001060 -&gt; owner namespace
+root@fade:~# printf &quot;%08x\n&quot; 135069
+00021f9a
+[  1.515] keyring: read complete; local=1 remote=0
+root@fade:~# check /dev/tty4 --local
+[  1.589] loop: sector 0025 -&gt; 0x788b
+[  1.626] vaultfs: verify inode=00646 status=OK
+root@fade:~# stat /var/lib/fade/auth/0039
+  File: /var/lib/fade/index/0040  Blocks: 168
+[  1.737] vaultfs: map 0x000014fb -&gt; owner namespace
+root@fade:~# printf &quot;%08x\n&quot; 171906
+0002af7f
+[  1.848] route: check complete; local=1 remote=0
+root@fade:~# index /dev/sync5 --local
+[  1.922] block: sector 002e -&gt; 0x8ef2
+[  1.959] keyring: resolve inode=00799 status=OK
+root@fade:~# stat /var/lib/fade/tty/0048
+  File: /var/lib/fade/loop/0049  Blocks: 204
+[  2.070] vaultfs: map 0x00001996 -&gt; owner namespace
+root@fade:~# printf &quot;%08x\n&quot; 208743
+00033f64
+[  2.181] cache: index complete; local=1 remote=0
+root@fade:~# verify /dev/inode6 --local
+[  2.255] mount: sector 0037 -&gt; 0xa559
+[  2.292] route: probe inode=00952 status=OK
+root@fade:~# stat /var/lib/fade/sync/0057
+  File: /var/lib/fade/block/0058  Blocks: 240
+[  2.403] vaultfs: map 0x00001e31 -&gt; owner namespace
+root@fade:~# printf &quot;%08x\n&quot; 245580
+0003cf49
+[  2.514] vaultfs: verify complete; local=1 remote=0
+root@fade:~# resolve /dev/auth7 --local
+[  2.588] index: sector 0040 -&gt; 0xbbc0
+[  2.625] cache: map inode=01105 status=OK
+root@fade:~# stat /var/lib/fade/inode/0066
+  File: /var/lib/fade/mount/0067  Blocks: 276
+[  2.736] vaultfs: map 0x000022cc -&gt; owner namespace
+root@fade:~# printf &quot;%08x\n&quot; 282417
+00045f2e
+[  2.847] keyring: resolve complete; local=1 remote=0
+root@fade:~# probe /dev/tty8 --local
+[  2.921] loop: sector 0049 -&gt; 0xd227
+[  2.958] vaultfs: scan inode=01258 status=OK
+root@fade:~# stat /var/lib/fade/auth/0075
+  File: /var/lib/fade/index/0076  Blocks: 312
+[  3.069] vaultfs: map 0x00002767 -&gt; owner namespace
+root@fade:~# printf &quot;%08x\n&quot; 319254
+0004ef13
+[  3.180] route: probe complete; local=1 remote=0
+root@fade:~# map /dev/sync9 --local
+[  3.254] block: sector 0052 -&gt; 0xe88e
+[  3.291] keyring: read inode=01411 status=OK
+root@fade:~# stat /var/lib/fade/tty/0084
+  File: /var/lib/fade/loop/0085  Blocks: 348
+[  3.402] vaultfs: map 0x00002c02 -&gt; owner namespace
+root@fade:~# printf &quot;%08x\n&quot; 356091
+00057ef8
+[  3.513] cache: map complete; local=1 remote=0
+root@fade:~# scan /dev/inode10 --local
+[  3.587] mount: sector 005b -&gt; 0xfef5
+[  3.624] route: check inode=01564 status=OK
+root@fade:~# stat /var/lib/fade/sync/0093
+  File: /var/lib/fade/block/0094  Blocks: 384
+[  3.735] vaultfs: map 0x0000309d -&gt; owner namespace
+root@fade:~# printf &quot;%08x\n&quot; 392928
+00060edd
+[  3.846] vaultfs: scan complete; local=1 remote=0
+root@fade:~# read /dev/auth11 --local
+[  3.920] index: sector 0064 -&gt; 0x155c
+[  3.957] cache: index inode=01717 status=OK
+root@fade:~# stat /var/lib/fade/inode/0102
+  File: /var/lib/fade/mount/0103  Blocks: 420
+[  4.068] vaultfs: map 0x00003538 -&gt; owner namespace
+root@fade:~# printf &quot;%08x\n&quot; 429765
+00069ec2
+[  4.179] keyring: read complete; local=1 remote=0</pre></div>
+  <div class="tty-final">
+    <div>root@fade:~# mount /dev/fade-vault /mnt/iii</div>
+    <div>mount: /mnt/iii: mounted</div>
+    <div>root@fade:~# cd /mnt/iii</div>
+    <div>root@fade:/mnt/iii# <span class="tty-cursor">_</span></div>
   </div>
 </div>
 <dialog id="keepWarning" closedby="none" aria-labelledby="keepWarningTitle" aria-describedby="keepWarningDescription">
@@ -157,6 +271,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="organizer.js?v=20260924-gallery-fix"></script>
-<script src="app.js?v=20260929-hacker-terminal"></script>
+<script src="app.js?v=20260929-tty-ten-second"></script>
 </body>
 </html>
