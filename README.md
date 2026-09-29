@@ -2,7 +2,7 @@
 
 A cross-device clipboard with Google sign-in. Temporary clips fade after ten minutes. The owner also has a private Keep vault for clips that should stay.
 
-The `iii` vault entry always runs for five seconds: the clipboard contracts for 3.5 seconds, then a brief portal and code stream reveal the vault. It uses CSS transforms and opacity rather than animated filters or canvas. The vault entry is intentionally forced even when reduced motion is enabled on the device.
+The `iii` vault entry runs for five seconds: visible cards and controls move separately into a central mechanical door, then its two panels open to reveal the vault. The animation uses composited transforms and opacity, with no canvas or per-frame JavaScript. It runs even when reduced motion is enabled on the device.
 
 [Open Fade](https://0xtrvkc.github.io/Fade-self-erasing-clipboard/)
 

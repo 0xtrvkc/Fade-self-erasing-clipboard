@@ -23,7 +23,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260929-portal-forced">
+<link rel="stylesheet" href="styles.css?v=20260929-mechanical-door">
 </head>
 <body>
 <section id="signIn" class="sign-in" aria-labelledby="signInTitle">
@@ -114,15 +114,12 @@
   </div></footer>
 </section>
 <div id="unlockPopup" aria-hidden="true">
-  <div class="portal-core"><span>III</span></div>
-  <div class="portal-code" aria-hidden="true">
-    <span>01001011<br>01100101<br>10010110<br>00101101</span>
-    <span>10110100<br>00101110<br>11001001<br>01011011</span>
-    <span>01101010<br>10110010<br>01001101<br>11010101</span>
-    <span>11010110<br>01001011<br>10100101<br>00110110</span>
-    <span>00110101<br>11001010<br>01110100<br>10011001</span>
+  <div class="module-layer"></div>
+  <div class="mechanical-door">
+    <div class="door-wing door-left"><span class="door-mark">FADE // III</span></div>
+    <div class="door-wing door-right"><span class="door-mark">VAULT // OPEN</span></div>
   </div>
-  <div class="portal-label">ACCESSING VAULT // III</div>
+  <div class="door-seam"></div>
 </div>
 <dialog id="keepWarning" closedby="none" aria-labelledby="keepWarningTitle" aria-describedby="keepWarningDescription">
   <div class="warning-shell">
@@ -150,6 +147,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="organizer.js?v=20260924-gallery-fix"></script>
-<script src="app.js?v=20260929-portal-forced"></script>
+<script src="app.js?v=20260929-mechanical-door"></script>
 </body>
 </html>
