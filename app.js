@@ -37,7 +37,7 @@ function vaultCapacity() {
   try { return Number(localStorage.getItem('fade.vault.capacity')) || VAULT_CAPACITY_BYTES; }
   catch { return VAULT_CAPACITY_BYTES; }
 }
-let db, auth, currentUid = null, connected = false, clockOffset = 0, activeScope = 'clips', toastTimeout, unlockTimer;
+let db, auth, currentUid = null, connected = false, clockOffset = 0, activeScope = 'clips', toastTimeout, unlockTimer, unlockFinishTimer;
 let drag = null;
 const now = () => Date.now() + clockOffset;
 const $ = id => document.getElementById(id);
@@ -267,10 +267,9 @@ function initFirebase() {
 }
 function stopSession() {
   connected = false;
-  clearTimeout(unlockTimer); unlockTimer = null;
+  clearTimeout(unlockTimer); clearTimeout(unlockFinishTimer); unlockTimer = unlockFinishTimer = null;
   document.body.classList.remove('vault-breaching');
-  $('unlockPopup').classList.remove('show', 'breach-ready');
-  $('mainWorkspace').classList.remove('breach-ready');
+  $('unlockPopup').classList.remove('show');
   $('vault').classList.remove('vault-entering', 'vault-preparing');
   cancelDrag(); cancelKeepHold();
   if (dialog.open) closeDialog();
@@ -1491,8 +1490,6 @@ function openVault(animate = false) {
   $('vault').hidden = false;
   $('vault').classList.remove('vault-preparing');
   if (animate) {
-    $('vault').classList.remove('vault-entering');
-    void $('vault').offsetWidth;
     $('vault').classList.add('vault-entering');
   }
   scopes.vault.ui.Search.focus();
@@ -1501,34 +1498,28 @@ function openVault(animate = false) {
 function unlockVault() {
   if (!currentUid || activeScope === 'vault' || unlockTimer) return;
   if (!owner()) { toast('The vault is available only to the owner.'); return; }
-  // Block a second trigger while the two pre-warm frames are pending.
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { openVault(); return; }
+  // Keep the existing layout intact while it contracts, so cards never pile up.
   unlockTimer = -1;
   const popup = $('unlockPopup');
   const workspace = $('mainWorkspace');
   const vault = $('vault');
   popup.classList.remove('show');
-  popup.classList.add('breach-ready');
-  workspace.classList.add('breach-ready');
-
-  // Build the hidden vault and its compositor layers before the breach begins.
-  // This avoids a full layout/paint in the middle of the 1.6s animation.
-  vault.hidden = false;
-  vault.classList.add('vault-preparing');
-
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    if (!currentUid) return;
+  workspace.inert = true;
+  requestAnimationFrame(() => {
+    if (!currentUid) { unlockTimer = null; return; }
     document.body.classList.add('vault-breaching');
     popup.classList.add('show');
-    unlockTimer = setTimeout(() => openVault(true), 1120);
-    setTimeout(() => {
-      clearTimeout(unlockTimer);
-      unlockTimer = null;
-      popup.classList.remove('show', 'breach-ready');
-      workspace.classList.remove('breach-ready');
-      vault.classList.remove('vault-entering', 'vault-preparing');
+    unlockTimer = setTimeout(() => {
+      if (currentUid) openVault(true);
+    }, 4600);
+    unlockFinishTimer = setTimeout(() => {
+      unlockTimer = unlockFinishTimer = null;
+      popup.classList.remove('show');
+      vault.classList.remove('vault-entering');
       document.body.classList.remove('vault-breaching');
-    }, 1620);
-  }));
+    }, 5000);
+  });
 }
 function closeVault() {
   cancelDrag();
