@@ -144,51 +144,65 @@ input[type=search]::-webkit-search-cancel-button { cursor: pointer; }
 #vault .clip.selected { outline-color: var(--cyan); }
 #vault .bulk-bar { background: #132f30; }
 #vaultExit { flex: none; }
-/* Five-second ASCII hands: two independent transforms, one contact, then the vault. */
+/* Five-second terminal entrance: fixed text, a few staggered reveals, compositor-only exit. */
 #unlockPopup {
-  position: fixed; inset: 0; z-index: 4000; pointer-events: none;
-  visibility: hidden; overflow: hidden; background: #080b0c;
-  color: #d9d6c7;
+  position: fixed; inset: 0; z-index: 4000; visibility: hidden;
+  pointer-events: none; overflow: hidden; background: #030809; color: #c4f5df;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
-#unlockPopup.show { visibility: visible; animation: adam-curtain 5s linear both; }
-body.vault-breaching #mainWorkspace { animation: adam-workspace-fade .3s linear both; }
-.adam-hand { position: absolute; left: 50%; width: max-content; opacity: 0; font-size: clamp(5px, 1.2vw, 15px); }
-.adam-left { top: calc(50% - 2.5em); }
-.adam-right { top: calc(50% + 2em); }
-.hand-drawing {
-  margin: 0; white-space: pre; user-select: none;
-  font: 600 1em/1.12 monospace;
-  letter-spacing: 0; color: #e6e3d5;
+#unlockPopup.show { visibility: visible; will-change: transform; animation: hack-curtain 5s linear both; }
+body.vault-breaching #mainWorkspace { animation: hack-cut .12s steps(1,end) both; }
+.hack-shell {
+  position: absolute; inset: clamp(12px, 3vw, 36px); max-width: 1050px; margin: 0 auto;
+  display: flex; flex-direction: column; border: 1px solid #286052;
+  background: #061011; box-shadow: inset 0 0 0 1px #0d322c;
 }
-#unlockPopup.show .adam-left { animation: adam-left-reach 5s cubic-bezier(.28,.02,.26,1) both; }
-#unlockPopup.show .adam-right { animation: adam-right-reach 5s cubic-bezier(.28,.02,.26,1) both; }
-.adam-contact {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  color: #fff8df; font: 700 clamp(16px, 2vw, 25px)/1 monospace; opacity: 0;
+.hack-head, .hack-foot {
+  flex: none; display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; padding: 12px clamp(14px, 3vw, 28px);
+  color: #8ac6b0; font: 600 clamp(10px, 1.2vw, 13px)/1.4 monospace; letter-spacing: .1em;
 }
-#unlockPopup.show .adam-contact { animation: adam-touch 5s linear both; }
-#vault.vault-entering { animation: adam-vault-arrive .8s ease-out both; }
-@keyframes adam-workspace-fade { from { opacity: 1; } to { opacity: 0; } }
-@keyframes adam-curtain {
-  0%, 79% { opacity: 1; }
-  100% { opacity: 0; visibility: hidden; }
+.hack-head { border-bottom: 1px solid #286052; }
+.hack-led { display: inline-block; width: 6px; height: 6px; margin-left: 6px; background: #b8fbc8; vertical-align: middle; }
+.hack-console {
+  position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center;
+  gap: clamp(8px, 1.5vh, 16px); padding: 18px clamp(18px, 5vw, 58px);
+  font: 500 clamp(11px, 1.5vw, 17px)/1.3 monospace;
 }
-@keyframes adam-left-reach {
-  0%, 8% { opacity: 0; transform: translate3d(calc(-100% - 55vw),-50%,0); }
-  18% { opacity: 1; }
-  61% { opacity: 1; transform: translate3d(calc(-100% - 30px),-50%,0); }
-  68%, 80% { opacity: 1; transform: translate3d(calc(-100% - 7px),-50%,0); }
-  96%, 100% { opacity: 0; transform: translate3d(calc(-100% - 7px),-50%,0); }
+.hack-prompt { margin-bottom: clamp(8px, 2vh, 24px); color: #e9fff1; }
+.hack-caret { display: inline-block; color: #68f9ae; }
+#unlockPopup.show .hack-caret { animation: hack-caret 1s steps(1,end) 4; }
+.hack-line { opacity: 0; transform: translate3d(0,5px,0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hack-line span { display: inline-block; margin-right: 16px; color: #67a896; }
+#unlockPopup.show .hack-line { animation: hack-line-arrive .12s steps(1,end) var(--at) both; }
+.hack-alert {
+  position: absolute; inset: 15% 5%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; background: #0b1011; border: 2px solid #fa5060; color: #ff9aa2;
+  opacity: 0; text-align: center;
 }
-@keyframes adam-right-reach {
-  0%, 11% { opacity: 0; transform: translate3d(55vw,-50%,0); }
-  21% { opacity: 1; }
-  61% { opacity: 1; transform: translate3d(30px,-50%,0); }
-  68%, 80% { opacity: 1; transform: translate3d(7px,-50%,0); }
-  96%, 100% { opacity: 0; transform: translate3d(7px,-50%,0); }
+.hack-alert small, .hack-alert span { font: 600 clamp(10px, 1.3vw, 14px)/1.3 monospace; letter-spacing: .18em; }
+.hack-alert strong { color: #f7edef; font: 800 clamp(28px, 7vw, 86px)/1 monospace; letter-spacing: -.05em; }
+#unlockPopup.show .hack-alert { animation: hack-alert-life 5s steps(1,end) both; }
+.hack-foot { flex-direction: column; align-items: stretch; border-top: 1px solid #286052; font-size: 10px; }
+.hack-progress { height: 3px; background: #17342b; }
+.hack-progress i { display: block; width: 100%; height: 100%; background: #8af7bd; transform: scaleX(0); transform-origin: left center; }
+#unlockPopup.show .hack-progress i { animation: hack-progress 3.7s linear both; }
+#vault.vault-entering { animation: hack-vault-arrive .8s ease-out both; }
+@keyframes hack-cut { to { opacity: 0; } }
+@keyframes hack-curtain { 0%, 81% { transform: translate3d(0,0,0); } 100% { transform: translate3d(0,-105%,0); visibility: hidden; } }
+@keyframes hack-line-arrive { to { opacity: 1; transform: translate3d(0,0,0); } }
+@keyframes hack-caret { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+@keyframes hack-alert-life {
+  0%, 56% { opacity: 0; } 58%, 61% { opacity: 1; } 62% { opacity: 0; }
+  64%, 74% { opacity: 1; } 75%, 100% { opacity: 0; }
 }
-@keyframes adam-touch { 0%, 66% { opacity: 0; } 69%, 78% { opacity: 1; } 82%, 100% { opacity: 0; } }
-@keyframes adam-vault-arrive { from { opacity: 0; transform: scale(.99); } to { opacity: 1; transform: scale(1); } }
+@keyframes hack-progress { 0% { transform: scaleX(0); } 78% { transform: scaleX(.66); } 100% { transform: scaleX(1); } }
+@keyframes hack-vault-arrive { from { opacity: 0; transform: translate3d(0,16px,0); } to { opacity: 1; transform: translate3d(0,0,0); } }
+@media (max-width: 600px) {
+  .hack-head span:last-child { display: none; }
+  .hack-console { gap: 9px; }
+  .hack-alert { inset: 25% 0; }
+}
 #actionDialog { padding: 0; color: #f5f1e6; background: #22272b; border: 1px solid #56626b; border-radius: 14px; width: min(520px, calc(100% - 32px)); max-height: 88vh; max-height: 88dvh; overflow-y: auto; }
 #actionDialog::backdrop { background: #000a; backdrop-filter: blur(3px); }
 .dialog-header { position: sticky; top: 0; background: #22272b; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 12px; z-index: 1; }

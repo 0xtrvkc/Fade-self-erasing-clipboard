@@ -1498,7 +1498,7 @@ function openVault(animate = false) {
 function unlockVault() {
   if (!currentUid || activeScope === 'vault' || unlockTimer) return;
   if (!owner()) { toast('The vault is available only to the owner.'); return; }
-  // The two ASCII hand layers animate independently; no per-frame JavaScript.
+  // Terminal scene is CSS-driven; JavaScript only handles the vault handoff.
   unlockTimer = -1;
   const popup = $('unlockPopup');
   const workspace = $('mainWorkspace');
