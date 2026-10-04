@@ -76,7 +76,7 @@ async function prepare(page) {
       currentUid = OWNER_UID;
       activeScope = 'vault';
       document.getElementById('signIn').hidden = true;
-      document.getElementById('clips').hidden = true;
+      document.getElementById('mainWorkspace').hidden = true;
       document.getElementById('vault').hidden = false;
       scopes.vault.items = {
         demo: {
