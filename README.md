@@ -81,3 +81,10 @@ These local checks do not replace testing the published Firebase rules with sepa
 ## License
 
 MIT.
+
+
+## Optional Jev upgrade
+
+**Semantic vault search and group suggestions.** Open the signed-in owner vault. Choose notes to search, select eligible text/link clips, and choose Semantic search or Suggest existing groups. Selection is explicit; nothing is preselected. A maximum of 50 candidates is listed. Long notes send only their first 2,000 characters, shown in the preview. Attachments, encoded images, temporary clips and file bytes are excluded. Show clip opens an existing note; group suggestions require the normal Move controls and never modify Firebase on their own.
+
+See [JEV.md](JEV.md) for browser-first setup, privacy, input limits, tests and live-evaluation limitations. Existing functionality works without Jev configuration.
