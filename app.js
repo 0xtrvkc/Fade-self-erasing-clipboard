@@ -295,6 +295,7 @@ function initFirebase() {
   }
 }
 function stopSession() {
+  window.dispatchEvent(new Event("jev:context"));
   connected = false;
   clearTimeout(unlockTimer); clearTimeout(unlockFinishTimer); unlockTimer = unlockFinishTimer = null;
   stopVaultTyping();
@@ -1686,3 +1687,10 @@ window.addEventListener('resize', () => {
     for (const rec of scopes[activeScope].cards.values()) checkExpand(rec);
   }, 150);
 });
+
+// Only text from the signed-in owner's currently loaded vault is eligible.
+window.JevApp={
+ vaultCandidates(query){if(!owner()||activeScope!=='vault')throw new Error('Open your owner vault first.');return Object.entries(scopes.vault.items).filter(([,x])=>['text','link'].includes(x.type)).map(([key,x])=>({key,title:x.title||x.content.slice(0,90),text:x.content,group:x.group?.name||'Unfiled'})).sort((a,b)=>Number(b.text.toLowerCase().includes(query.toLowerCase()))-Number(a.text.toLowerCase().includes(query.toLowerCase()))).slice(0,50);},
+ showClip(key){if(!owner()||activeScope!=='vault'||!scopes.vault.items[key])throw new Error('Clip is no longer available in this vault.');const view=scopes.vault;view.query='';view.type='all';view.ui.Search.value='';view.ui.Type.value='all';view.collapsed.delete(M.groupId(view.items[key]));render(view);const card=view.cards.get(key)?.el;card?.scrollIntoView({block:'center',behavior:'auto'});card?.focus();},
+ vaultGroups(){return scopes.vault.groups.map(x=>({id:x.id,name:x.name}));}
+};

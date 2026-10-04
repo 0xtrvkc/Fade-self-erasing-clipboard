@@ -1,0 +1,19 @@
+{
+  "name": "trvkc-fade-self-erasing-clipboard-jev",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-01",
+  "vars": {
+    "ALLOWED_ORIGINS": "https://0xtrvkc.github.io",
+    "JEV_MODEL": "jev-latest"
+  },
+  "ratelimits": [
+    {
+      "name": "JEV_LIMITER",
+      "namespace_id": "260043",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    }
+  ]
+}
