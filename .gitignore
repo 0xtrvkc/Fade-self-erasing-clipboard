@@ -4,7 +4,3 @@ functions/node_modules/
 firebase-debug.log
 
 database-debug.log
-
-# Local Jev secrets and browser verification artifacts
-.dev.vars
-test-artifacts/
