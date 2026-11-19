@@ -83,7 +83,8 @@ function savePreferences(view) {
   try {
     if (!currentUid) return;
     localStorage.setItem('fade.organizer.v2.' + currentUid + '.' + view.scope, JSON.stringify({
-      groups: view.groups, collapsed: [...view.collapsed], layout: view.layout, sort: view.sort
+      // Vault group names are encrypted with their items, so they are not copied to local storage.
+      groups: view.scope === 'vault' ? [] : view.groups, collapsed: [...view.collapsed], layout: view.layout, sort: view.sort
     }));
   } catch { /* Device preferences are optional; clipboard content is never stored here. */ }
 }
@@ -136,6 +137,8 @@ function openStorageSettings() {
   const error = element('p', 'dialog-error'); error.setAttribute('role', 'alert');
   const save = button('Save budget'); save.type = 'submit';
   form.append(label, input, element('p', 'dialog-help', 'This display budget is saved on this device. It does not change or enforce your Firebase storage plan. Leave blank to clear it.'), error, save);
+  const security = element('div', 'dialog-actions');
+  security.append(button('Change vault passphrase', showChangePassphraseForm));
   form.onsubmit = e => {
     e.preventDefault();
     const value = input.value.trim() ? Number(input.value) * 1000000 : null;
@@ -145,7 +148,7 @@ function openStorageSettings() {
     } catch { error.textContent = 'This browser could not save the budget.'; return; }
     updateVaultStorage(); closeDialog();
   };
-  body.append(form); input.focus();
+  body.append(form, security); input.focus();
 }
 $('vaultStorage').onclick = openStorageSettings;
 function button(text, action, className = '') {
@@ -175,22 +178,400 @@ function currentGroup(view, id) { return view.groups.find(g => g.id === id) || n
 function imageContents(item) { return M.imageContents(item); }
 function albumAttachments(item) { return M.albumAttachments(item); }
 function clipLabel(item) { return (item.title || item.filename || (item.type === 'image' ? `${albumAttachments(item).length || imageContents(item).length} image(s)` : item.content)).slice(0, 90); }
-function blobRef(view, key) { return db.ref(`users/${view.scope === 'clips' && girlfriend ? OWNER_UID : currentUid}/fileData/${key}`); }
+// Clipboard file parts live in fileData (plain base64). Vault parts live in vaultData/<key>/<g>, encrypted.
+function blobRef(view, key) {
+  if (view.scope === 'vault') return db.ref(`users/${currentUid}/vaultData/${key}`);
+  return db.ref(`users/${girlfriend ? OWNER_UID : currentUid}/fileData/${key}`);
+}
 async function cleanDetachedBlob(view, key) {
   if (!db || !currentUid) return;
+  if (view.scope === 'vault') {
+    if ((await scopes.vault.ref.child(key).once('value')).exists()) return;
+    await blobRef(view, key).remove();
+    return;
+  }
   const clip = await scopes.clips.ref.child(key).once('value');
   if (clip.exists()) return;
   if (owner()) {
+    // Only a not-yet-encrypted vault item still points at clipboard file parts.
     const kept = await scopes.vault.ref.child(key).once('value');
-    if (kept.exists()) return;
+    if (kept.exists() && kept.val()?.v !== V.VERSION) return;
   }
   await blobRef(view, key).remove();
+}
+function base64Bytes(encoded) {
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+async function readPart(view, key, part) {
+  if (view.scope !== 'vault') {
+    const encoded = (await blobRef(view, key).child(part).once('value')).val();
+    if (typeof encoded !== 'string') throw new Error('A file part is missing.');
+    return base64Bytes(encoded);
+  }
+  const item = view.items[key], cached = vaultState.itemKeys.get(key);
+  if (!item || !cached) throw new Error('The vault is locked.');
+  const encoded = (await blobRef(view, key).child(item.g).child(part).once('value')).val();
+  if (typeof encoded !== 'string') throw new Error('A file part is missing.');
+  return V.decryptPart(cached.key, key, part, encoded);
+}
+async function writePart(view, key, part, base64) {
+  if (view.scope !== 'vault') return blobRef(view, key).child(part).set(base64);
+  const target = vaultState.writeKeys.get(key);
+  if (!target) throw new Error('The vault is locked.');
+  return blobRef(view, key).child(target.g).child(part).set(await V.encryptPart(target.key, key, part, base64Bytes(base64)));
+}
+
+// ---- Vault encryption -------------------------------------------------------------------------
+// Stored vault record: {v, epk, g, iv, ct, keptAt, order, revision, pinned?, color?, ready?}.
+// Everything else (type, content, title, group, filename, sizes, attachments) is inside `ct`.
+// Large text and inline images move into encrypted body parts b0…bn so `ct` stays small.
+const V = FadeVaultCrypto;
+const VAULT_OUTER = ['keptAt', 'order', 'revision', 'pinned', 'color', 'ready', 'g'];
+const VAULT_BODY_THRESHOLD = 16000;
+const vaultState = { privateKey: null, itemKeys: new Map(), writeKeys: new Map(), metaCache: new Map(), bodyCache: new Map(),
+  loadSeq: 0, listening: false, migrating: false, migrationFailed: new Set(), failedNotice: 0 };
+const vaultUnlocked = () => !!vaultState.privateKey;
+const vaultKeyRef = () => db.ref(`users/${currentUid}/vaultKey`);
+const pubPinKey = () => 'fade.vault.pub.' + currentUid;
+function newGeneration() {
+  return V.b64(crypto.getRandomValues(new Uint8Array(12))).replace(/\+/g, '-').replace(/\//g, '_');
+}
+async function vaultRecord() {
+  return (await vaultKeyRef().once('value')).val();
+}
+async function vaultPublicKey() {
+  const record = await vaultRecord();
+  if (!record) throw new Error('Set up vault encryption first: type iii to open the vault and choose a passphrase.');
+  let pinned = null;
+  try { pinned = localStorage.getItem(pubPinKey()); } catch { /* Pinning is an extra check only. */ }
+  if (pinned && pinned !== record.pub) throw new Error('The vault key changed unexpectedly, so Keep is paused. Open the vault and unlock it to confirm.');
+  return V.importPublicKey(record.pub);
+}
+function partNames(item) {
+  if (item.content === 'chunked') return Array.from({ length: Number(item.chunkCount) || 0 }, (_, i) => String(i));
+  if (item.content === 'album') return albumAttachments(item).flatMap((info, i) => Array.from({ length: Number(info.parts) || 0 }, (_, p) => `a${i}_${p}`));
+  return [];
+}
+async function sealVaultItem(key, item, itemKey, epk, g) {
+  const outer = {}, meta = {};
+  for (const [field, value] of Object.entries(item)) {
+    if (value === undefined || value === null || ['v', 'epk', 'iv', 'ct', 'g'].includes(field)) continue;
+    (VAULT_OUTER.includes(field) ? outer : meta)[field] = value;
+  }
+  let stored = meta;
+  if ((typeof meta.content === 'string' && meta.content.length > VAULT_BODY_THRESHOLD) || meta.images) {
+    const { content, images, ...rest } = meta;
+    const bytes = new TextEncoder().encode(JSON.stringify({ content, images }));
+    const parts = Math.max(1, Math.ceil(bytes.length / CHUNK_BYTES));
+    for (let i = 0; i < parts; i++) {
+      await blobRef(scopes.vault, key).child(g).child('b' + i).set(await V.encryptPart(itemKey, key, 'b' + i, bytes.subarray(i * CHUNK_BYTES, (i + 1) * CHUNK_BYTES)));
+    }
+    stored = { ...rest, body: parts };
+  }
+  const sealed = await V.sealMeta(itemKey, key, stored);
+  if (sealed.ct.length > 1000000) throw new Error('This item has too much metadata to encrypt.');
+  return { ...outer, v: V.VERSION, epk, g, iv: sealed.iv, ct: sealed.ct };
+}
+async function copyPartsToVault(sourceRef, key, item, itemKey, g) {
+  for (const part of partNames(item)) {
+    const encoded = (await sourceRef.child(part).once('value')).val();
+    if (typeof encoded !== 'string') throw new Error('A file part is missing, so this item was not encrypted.');
+    await blobRef(scopes.vault, key).child(g).child(part).set(await V.encryptPart(itemKey, key, part, base64Bytes(encoded)));
+  }
+}
+async function vaultItemKey(key, epk) {
+  const cached = vaultState.itemKeys.get(key);
+  if (cached?.epk === epk) return cached.key;
+  if (!vaultState.privateKey) throw new Error('The vault is locked.');
+  const itemKey = await V.openItemKey(vaultState.privateKey, epk, key);
+  vaultState.itemKeys.set(key, { epk, key: itemKey });
+  return itemKey;
+}
+async function openVaultRecord(key, raw) {
+  const itemKey = await vaultItemKey(key, raw.epk);
+  let meta = vaultState.metaCache.get(key);
+  if (!meta || meta.iv !== raw.iv || meta.epk !== raw.epk) {
+    meta = { iv: raw.iv, epk: raw.epk, value: await V.openMeta(itemKey, key, raw.iv, raw.ct) };
+    vaultState.metaCache.set(key, meta);
+  }
+  const { body, ...plain } = meta.value;
+  for (const field of [...VAULT_OUTER, 'v', 'epk', 'iv', 'ct']) delete plain[field];
+  if (body) {
+    let cached = vaultState.bodyCache.get(key);
+    if (cached?.epk !== raw.epk) {
+      const chunks = [];
+      for (let i = 0; i < body; i++) {
+        const encoded = (await blobRef(scopes.vault, key).child(raw.g).child('b' + i).once('value')).val();
+        if (typeof encoded !== 'string') throw new Error('Encrypted body part missing.');
+        chunks.push(await V.decryptPart(itemKey, key, 'b' + i, encoded));
+      }
+      const value = JSON.parse(new TextDecoder().decode(await new Blob(chunks).arrayBuffer()));
+      cached = { epk: raw.epk, value: { content: value.content, ...(value.images ? { images: value.images } : {}) } };
+      vaultState.bodyCache.set(key, cached);
+    }
+    Object.assign(plain, cached.value);
+  }
+  for (const field of VAULT_OUTER) if (raw[field] !== undefined) plain[field] = raw[field];
+  return plain;
+}
+async function decryptVaultData(data) {
+  const items = Object.create(null), legacy = [];
+  let failed = 0;
+  await Promise.all(Object.entries(data).map(async ([key, raw]) => {
+    if (!raw || typeof raw !== 'object') return;
+    if (raw.v !== V.VERSION) { legacy.push([key, raw]); return; }
+    if (raw.ready === false) return;
+    try {
+      const item = await openVaultRecord(key, raw);
+      if (M.isClip(item)) items[key] = item; else failed++;
+    } catch (err) { console.error('Vault item could not be opened:', key, err); failed++; }
+  }));
+  return { items, legacy, failed };
+}
+function listenVault() {
+  const view = scopes.vault, uid = currentUid;
+  if (vaultState.listening || !view.ref) return;
+  vaultState.listening = true;
+  view.ref.on('value', snap => {
+    if (uid !== currentUid || !vaultUnlocked()) return;
+    const data = snap.val() || {};
+    const seq = ++vaultState.loadSeq;
+    decryptVaultData(data).then(({ items, legacy, failed }) => {
+      if (seq !== vaultState.loadSeq || uid !== currentUid || !vaultUnlocked()) return;
+      view.items = items;
+      // Encrypted size in the database plus file and image parts.
+      vaultBytes = M.storageBytes(data) + M.storageBytes(items) - new TextEncoder().encode(JSON.stringify(items)).length;
+      vaultStorageError = false; updateVaultStorage();
+      render(view);
+      if (failed && failed !== vaultState.failedNotice) toast(`${failed} vault item${failed === 1 ? '' : 's'} could not be decrypted and ${failed === 1 ? 'is' : 'are'} hidden.`);
+      vaultState.failedNotice = failed;
+      const pending = legacy.filter(([key]) => !vaultState.migrationFailed.has(key));
+      if (pending.length) migrateLegacyVault(pending);
+    });
+  }, () => {
+    if (uid !== currentUid) return;
+    vaultStorageError = true; updateVaultStorage();
+    view.ui.Count.textContent = 'Could not load clips';
+    toast('Could not read the vault.');
+  });
+}
+function lockVault() {
+  const view = scopes.vault;
+  vaultState.loadSeq++;
+  if (vaultState.listening) { view.ref?.off(); vaultState.listening = false; }
+  vaultState.privateKey = null;
+  vaultState.itemKeys.clear(); vaultState.writeKeys.clear(); vaultState.metaCache.clear(); vaultState.bodyCache.clear();
+  vaultState.failedNotice = 0; vaultState.migrationFailed.clear();
+  for (const card of view.cards.values()) card.el.remove();
+  view.cards.clear(); view.selected.clear(); view.selecting = false; view.visible = []; view.items = {}; view.groups = [];
+  view.ui.Search.value = ''; view.query = ''; view.ui.Input.value = '';
+  vaultBytes = null; updateVaultStorage();
+  render(view);
+  view.ui.Count.textContent = 'Locked';
+}
+function startVaultSession(unlocked, pub) {
+  vaultState.privateKey = unlocked.privateKey;
+  try { localStorage.setItem(pubPinKey(), pub); } catch { /* Optional. */ }
+  scopes.vault.ui.Count.textContent = 'Decrypting…';
+  listenVault();
+}
+// Existing plain vault items are encrypted once, on first unlock after this upgrade.
+async function encryptLegacyItem(key, item) {
+  if (item.ready === false) {
+    // An unfinished upload is never shown; remove it rather than carry plaintext forward.
+    await scopes.vault.ref.child(key).transaction(current => current && current.v !== V.VERSION && current.ready === false ? null : undefined, undefined, false);
+    return false;
+  }
+  const publicKey = await vaultPublicKey();
+  const { epk, key: itemKey } = await V.newItemKey(publicKey, key);
+  const g = newGeneration();
+  const fileRef = db.ref(`users/${currentUid}/fileData/${key}`);
+  try {
+    await copyPartsToVault(fileRef, key, item, itemKey, g);
+    const record = await sealVaultItem(key, { revision: 0, ...item }, itemKey, epk, g);
+    const result = await scopes.vault.ref.child(key).transaction(current =>
+      current && current.v !== V.VERSION && current.content === item.content && (Number(current.revision) || 0) === (Number(item.revision) || 0) ? record : undefined, undefined, false);
+    if (!result.committed) { await blobRef(scopes.vault, key).child(g).remove(); return false; }
+  } catch (err) {
+    await blobRef(scopes.vault, key).child(g).remove().catch(() => {});
+    throw err;
+  }
+  if (partNames(item).length) await cleanDetachedBlob(scopes.clips, key).catch(() => {});
+  return true;
+}
+async function migrateLegacyVault(entries) {
+  if (vaultState.migrating) return;
+  vaultState.migrating = true;
+  let done = 0, failed = 0;
+  $('vaultStatus').textContent = 'Encrypting vault…';
+  try {
+    for (const [key, item] of entries) {
+      if (!vaultUnlocked()) break;
+      try { if (await encryptLegacyItem(key, item)) done++; }
+      catch (err) { console.error('Could not encrypt vault item', key, err); vaultState.migrationFailed.add(key); failed++; }
+      $('vaultStatus').textContent = `Encrypting vault: ${done + failed} / ${entries.length}`;
+    }
+  } finally {
+    vaultState.migrating = false;
+    $('vaultStatus').textContent = connected ? 'Synced' : 'Reconnecting…';
+  }
+  if (done || failed) toast(`${done} existing vault item${done === 1 ? '' : 's'} encrypted.${failed ? ` ${failed} could not be encrypted yet; they will be retried next time you unlock.` : ''}`);
+}
+
+function passwordField(labelText, autocomplete) {
+  const input = document.createElement('input');
+  input.type = 'password'; input.autocomplete = autocomplete; input.spellcheck = false;
+  return { input, el: field(labelText, input) };
+}
+function vaultForm(body, submitText, onSubmit, extra = []) {
+  const form = element('form');
+  const error = element('p', 'dialog-error'); error.setAttribute('role', 'alert');
+  const submit = button(submitText, null, 'primary'); submit.type = 'submit';
+  const actions = element('div', 'dialog-actions');
+  actions.append(...extra, submit);
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const controls = [...form.querySelectorAll('button, input')];
+    controls.forEach(el => { el.disabled = true; });
+    error.textContent = 'Working…';
+    try { await onSubmit(); error.textContent = ''; }
+    catch (err) { error.textContent = err.message || 'Something went wrong. Please try again.'; }
+    finally { controls.forEach(el => { el.disabled = false; }); }
+  };
+  body.append(form);
+  return { form, error, actions, finish: () => form.append(error, actions) };
+}
+async function promptVaultUnlock() {
+  if (vaultUnlocked()) return;
+  dialog.addEventListener('close', () => {
+    if (!vaultUnlocked() && activeScope === 'vault') closeVault();
+  }, { once: true });
+  const body = openDialog('Unlock the vault');
+  body.append(element('p', 'dialog-help', 'Checking vault encryption…'));
+  let record;
+  try { record = await vaultRecord(); }
+  catch { body.replaceChildren(element('p', 'dialog-error', 'Could not reach the vault. Check your connection and database rules, then try again.')); return; }
+  if (record) showUnlockForm(record); else showSetupForm();
+}
+function showUnlockForm(record) {
+  const body = openDialog('Unlock the vault');
+  body.append(element('p', '', 'Your vault is encrypted on this device. Enter your vault passphrase.'));
+  const pass = passwordField('Vault passphrase', 'current-password');
+  const forgot = button('Use recovery key', () => showRecoveryForm(record));
+  const form = vaultForm(body, 'Unlock', async () => {
+    const unlocked = await V.unlockWithPassphrase(record, pass.input.value);
+    pass.input.value = '';
+    startVaultSession(unlocked, record.pub);
+    closeDialog();
+    scopes.vault.ui.Search.focus();
+  }, [forgot]);
+  form.form.append(pass.el);
+  form.finish();
+  pass.input.focus();
+}
+function showRecoveryForm(record) {
+  const body = openDialog('Recover the vault');
+  body.append(element('p', '', 'Enter the recovery key you saved when you set up the vault, then choose a new passphrase.'));
+  const code = document.createElement('input');
+  code.type = 'text'; code.autocomplete = 'off'; code.spellcheck = false; code.placeholder = 'XXXX-XXXX-…';
+  const next = passwordField('New passphrase', 'new-password'), again = passwordField('Repeat new passphrase', 'new-password');
+  const form = vaultForm(body, 'Reset passphrase and unlock', async () => {
+    if (next.input.value !== again.input.value) throw new Error('The new passphrases do not match.');
+    const recovered = await V.recoverWithCode(record, code.value, next.input.value);
+    await vaultKeyRef().child('pass').set(recovered.pass);
+    code.value = next.input.value = again.input.value = '';
+    startVaultSession(recovered, record.pub);
+    closeDialog();
+    toast('Passphrase reset. Your recovery key still works.');
+  }, [button('Back', () => showUnlockForm(record))]);
+  form.form.append(field('Recovery key', code), next.el, again.el);
+  form.finish();
+  code.focus();
+}
+function showSetupForm() {
+  const body = openDialog('Encrypt your vault');
+  body.append(element('p', '', 'Choose a vault passphrase. Vault items will be encrypted on your devices before they reach Firebase, so nobody can read them without it — not Google, not the database owner, not someone signed in as you.'),
+    element('p', 'dialog-help', `Use at least ${V.MIN_PASSPHRASE} characters; several unrelated words work well. You will need it each time you open the vault. Existing vault items will be encrypted after setup.`));
+  const pass = passwordField('Vault passphrase', 'new-password'), again = passwordField('Repeat passphrase', 'new-password');
+  const form = vaultForm(body, 'Continue', async () => {
+    if (pass.input.value !== again.input.value) throw new Error('The passphrases do not match.');
+    const created = await V.createVault(pass.input.value);
+    pass.input.value = again.input.value = '';
+    showRecoveryCode(created);
+  });
+  form.form.append(pass.el, again.el);
+  form.finish();
+  pass.input.focus();
+}
+function showRecoveryCode(created) {
+  const body = openDialog('Save your recovery key');
+  body.append(element('p', '', 'If you forget your passphrase, this key is the only way back into the vault. Store it offline — print it or save it in a password manager. It will not be shown again.'));
+  const code = element('code', 'recovery-code', created.recoveryCode);
+  const download = button('Download as text file', () => downloadBlob(new File([
+    `Fade vault recovery key\n\n${created.recoveryCode}\n\nUse "Use recovery key" on the vault unlock screen if you forget your passphrase.\nKeep this file offline and private.\n`
+  ], 'fade-vault-recovery-key.txt', { type: 'text/plain' })));
+  const confirm = document.createElement('input'); confirm.type = 'checkbox';
+  const confirmLabel = element('label', 'check-field'); confirmLabel.append(confirm, document.createTextNode('I have stored my recovery key somewhere safe'));
+  const form = vaultForm(body, 'Finish setup', async () => {
+    if (!confirm.checked) throw new Error('Confirm that you have stored the recovery key.');
+    const result = await vaultKeyRef().transaction(current => current === null ? created.record : undefined, undefined, false);
+    if (!result.committed) throw new Error('This vault was already set up on another device. Close this and unlock with that passphrase.');
+    startVaultSession(created, created.record.pub);
+    closeDialog();
+    toast('Vault encryption is on.');
+  });
+  form.form.append(code, download, confirmLabel);
+  form.finish();
+  download.focus();
+}
+function showChangePassphraseForm() {
+  const body = openDialog('Change vault passphrase');
+  const current = passwordField('Current passphrase', 'current-password');
+  const next = passwordField('New passphrase', 'new-password'), again = passwordField('Repeat new passphrase', 'new-password');
+  const form = vaultForm(body, 'Change passphrase', async () => {
+    if (next.input.value !== again.input.value) throw new Error('The new passphrases do not match.');
+    const record = await vaultRecord();
+    const pass = await V.changePassphrase(record, current.input.value, next.input.value);
+    await vaultKeyRef().child('pass').set(pass);
+    current.input.value = next.input.value = again.input.value = '';
+    closeDialog(); toast('Vault passphrase changed. Your recovery key still works.');
+  }, [button('Cancel', closeDialog)]);
+  form.form.append(current.el, next.el, again.el);
+  form.finish();
+  current.input.focus();
 }
 function getSelected(view) { return [...view.selected].filter(key => !!view.items[key]); }
 function manualMode(view) { return view.sort === 'manual' && !view.query && view.type === 'all'; }
 
+async function patchVaultItem(view, key, patch) {
+  const plain = view.items[key], meta = vaultState.metaCache.get(key), cached = vaultState.itemKeys.get(key);
+  if (!plain || !meta || !cached) throw new Error('This item was removed or the vault is locked.');
+  const outerPatch = {}, metaPatch = {};
+  for (const [field, value] of Object.entries(patch)) (VAULT_OUTER.includes(field) ? outerPatch : metaPatch)[field] = value;
+  let sealed = null;
+  if (Object.keys(metaPatch).length) {
+    const next = { ...meta.value, ...metaPatch };
+    for (const field of Object.keys(next)) if (next[field] === null || next[field] === undefined) delete next[field];
+    sealed = await V.sealMeta(cached.key, key, next);
+  }
+  const result = await view.ref.child(key).transaction(current => {
+    if (!current || current.v !== V.VERSION || current.epk !== meta.epk) return;
+    if (sealed && current.iv !== meta.iv) return; // Changed on another device since it was decrypted here.
+    const next = { ...current, ...outerPatch, ...(sealed || {}), revision: (Number(current.revision) || 0) + 1 };
+    for (const field of Object.keys(next)) if (next[field] === null || next[field] === undefined) delete next[field];
+    return next;
+  }, undefined, false);
+  if (!result.committed) throw new Error('This item changed on another device or was removed. Please try again.');
+  const merged = { ...plain, ...patch };
+  for (const field of Object.keys(merged)) if (merged[field] === null || merged[field] === undefined) delete merged[field];
+  return merged;
+}
 async function patchItem(view, key, patch) {
   requireConnection();
+  if (view.scope === 'vault') return patchVaultItem(view, key, patch);
   if (girlfriend && !canEdit(view.items[key])) throw new Error('You can copy this clip, but only its creator can edit it.');
   const result = await view.ref.child(key).transaction(current => M.patchCurrent(current, patch, view.scope, now()), undefined, false);
   if (!result.committed) throw new Error('This clip expired or was removed on another device.');
@@ -283,7 +664,6 @@ function initFirebase() {
         if (connected) { pendingExpiry.clear(); for (const key of expiryQueue) purgeExpired(key); tick(); }
       });
       listen(scopes.clips);
-      if (owner()) listen(scopes.vault);
     }, err => { $('signInError').textContent = err.message || 'Could not restore sign-in.'; $('signInButton').disabled = false; });
   } catch (err) {
     console.error(err);
@@ -310,6 +690,7 @@ function stopSession() {
     view.ui.Board.querySelectorAll('.group').forEach(section => section.remove());
     view.ui.Input.value = ''; view.ui.Search.value = ''; view.query = ''; view.type = 'all'; view.ui.Type.value = 'all';
   }
+  lockVault();
   pendingExpiry.clear(); expiryQueue.clear(); currentUid = null; vaultBytes = null;
   girlfriend = false; document.body.classList.remove('girlfriend-theme');
   $('clipsBulkKeep').hidden = false;
@@ -658,14 +1039,7 @@ function checkExpand(rec) {
 }
 async function albumImage(view, key, index, info) {
   const parts = [];
-  for (let part = 0; part < info.parts; part++) {
-    const encoded = (await blobRef(view, key).child(`a${index}_${part}`).once('value')).val();
-    if (typeof encoded !== 'string') throw new Error('An image part is missing.');
-    const binary = atob(encoded);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    parts.push(bytes);
-  }
+  for (let part = 0; part < info.parts; part++) parts.push(await readPart(view, key, `a${index}_${part}`));
   return new File(parts, info.name || `image-${index + 1}`, {type: info.mime});
 }
 function showAlbumImage(img, view, key, index, info) {
@@ -1109,15 +1483,26 @@ function openGroupDialog(view, group = null) {
 async function keepItems(view, keys) {
   requireConnection();
   if (!owner()) throw new Error('Only the owner can keep clips.');
+  // Keeping needs only the vault's public key, so it works while the vault is locked.
+  const publicKey = await vaultPublicKey();
   let count = 0, changed = 0;
   for (const key of keys) {
     const snap = await view.ref.child(key).once('value');
     const item = snap.val();
-    if (!M.isClip(item) || M.expired(item, view.scope, now())) continue;
-    const kept = { ...item, keptAt: firebase.database.ServerValue.TIMESTAMP, order: -now() };
-    const result = await scopes.vault.ref.child(key).transaction(current => current === null ? kept : undefined, undefined, false);
+    if (!M.isClip(item) || item.ready === false || M.expired(item, view.scope, now())) continue;
+    const { epk, key: itemKey } = await V.newItemKey(publicKey, key);
+    const g = newGeneration();
+    let result;
+    try {
+      await copyPartsToVault(blobRef(view, key), key, item, itemKey, g);
+      const record = await sealVaultItem(key, { ...item, keptAt: firebase.database.ServerValue.TIMESTAMP, order: -now() }, itemKey, epk, g);
+      result = await scopes.vault.ref.child(key).transaction(current => current === null ? record : undefined, undefined, false);
+    } catch (err) {
+      await blobRef(scopes.vault, key).child(g).remove().catch(() => {});
+      throw err;
+    }
     // A prior attempt may have kept a different revision. Never replace it or erase the source.
-    if (!result.committed) { changed++; continue; }
+    if (!result.committed) { await blobRef(scopes.vault, key).child(g).remove().catch(() => {}); changed++; continue; }
     const removed = await view.ref.child(key).transaction(current => {
       if (!M.isClip(current)) return;
       if ((Number(current.revision) || 0) !== (Number(item.revision) || 0) || current.content !== item.content) return;
@@ -1125,8 +1510,9 @@ async function keepItems(view, keys) {
     }, undefined, false);
     count++;
     if (!removed.committed) changed++;
+    else if (partNames(item).length) await cleanDetachedBlob(view, key).catch(() => {});
   }
-  if (count) toast(`${count} clip${count === 1 ? '' : 's'} kept in the vault.${changed ? ' Changed source clips were left in place.' : ''}`);
+  if (count) toast(`${count} clip${count === 1 ? '' : 's'} encrypted and kept in the vault.${changed ? ' Changed source clips were left in place.' : ''}`);
   else toast(changed ? 'Already kept or changed on another device. Source clips were left in place.' : 'These clips already expired or were removed.');
 }
 function confirmDelete(view, keys) {
@@ -1139,7 +1525,7 @@ function confirmDelete(view, keys) {
     const results = await Promise.allSettled(keys.map(async key => {
       let record;
       const result = await view.ref.child(key).transaction(current => {
-        if (!M.isClip(current)) return;
+        if (!M.isClip(current) && !(view.scope === 'vault' && current?.v === V.VERSION)) return;
         record = current; return null;
       }, undefined, false);
       if (result.committed && record) deleted.push({ key, item: record });
@@ -1161,7 +1547,7 @@ function confirmDelete(view, keys) {
       }
       toast(`${restored} restored.${restored < deleted.length ? ' Other clips expired or were already restored.' : ''}`);
     }, 'Undo', 10000);
-    setTimeout(() => { for (const { key, item } of deleted) if (['chunked', 'album'].includes(item.content)) cleanDetachedBlob(view, key).catch(() => {}); }, 11_000);
+    setTimeout(() => { for (const { key, item } of deleted) if (view.scope === 'vault' || ['chunked', 'album'].includes(item.content)) cleanDetachedBlob(view, key).catch(() => {}); }, 11_000);
   }), 'danger-button'));
   body.append(actions);
 }
@@ -1294,12 +1680,7 @@ async function downloadFile(item, view, key) {
     const parts = [];
     const count = item.content === 'chunked' ? item.chunkCount : 1;
     for (let index = 0; index < count; index++) {
-      const encoded = item.content === 'chunked' ? (await blobRef(view, key).child(String(index)).once('value')).val() : item.content.split(',')[1];
-      if (typeof encoded !== 'string') throw new Error('A file part is missing.');
-      const binary = atob(encoded);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      parts.push(bytes);
+      parts.push(item.content === 'chunked' ? await readPart(view, key, String(index)) : base64Bytes(item.content.split(',')[1]));
     }
     const url = URL.createObjectURL(new Blob(parts, { type: 'application/octet-stream' }));
     const a = document.createElement('a'); a.href = url; a.download = item.filename || 'attachment';
@@ -1392,7 +1773,15 @@ async function addItem(view, type, content, destinationId = view.ui.Destination.
   if (type === 'image' && content === 'album') { item.attachments = attachment.attachments; item.ready = false; }
   if (images?.length > 1) item.images = images;
   if (group) item.group = group;
-  if (view.scope === 'clips' && !owner() && !girlfriend) {
+  if (view.scope === 'vault') {
+    if (!vaultUnlocked()) throw new Error('The vault is locked.');
+    const { epk, key: itemKey } = await V.newItemKey(await vaultPublicKey(), ref.key);
+    const g = newGeneration();
+    vaultState.writeKeys.set(ref.key, { key: itemKey, g });
+    vaultState.itemKeys.set(ref.key, { epk, key: itemKey });
+    try { await ref.set(await sealVaultItem(ref.key, item, itemKey, epk, g)); }
+    catch (err) { await blobRef(view, ref.key).remove().catch(() => {}); throw err; }
+  } else if (view.scope === 'clips' && !owner() && !girlfriend) {
     const result = await ref.transaction(current => current === null ? item : undefined, undefined, false);
     if (!result.committed) throw new Error(freeClipMessage);
   } else await ref.set(item);
@@ -1456,7 +1845,7 @@ async function processAttachments(view, files, destinationId = view.ui.Destinati
           const file = images[index];
           for (let part = 0; part < attachments[index].parts; part++) {
             const data = await readDataURL(file.slice(part * CHUNK_BYTES, (part + 1) * CHUNK_BYTES));
-            await blobRef(view, key).child(`a${index}_${part}`).set(data.slice(data.indexOf(',') + 1));
+            await writePart(view, key, `a${index}_${part}`, data.slice(data.indexOf(',') + 1));
           }
           (view.scope === 'vault' ? $('vaultStatus') : $('status')).textContent = `Uploading images: ${index + 1} / ${images.length}`;
         }
@@ -1484,7 +1873,7 @@ async function processAttachments(view, files, destinationId = view.ui.Destinati
           if (girlfriend) await blobRef(view, key).child('authorEmail').set(GIRLFRIEND_EMAIL);
           for (let i = 0; i < chunkCount; i++) {
             const data = await readDataURL(file.slice(i * CHUNK_BYTES, (i + 1) * CHUNK_BYTES));
-            await blobRef(view, key).child(String(i)).set(data.slice(data.indexOf(',') + 1));
+            await writePart(view, key, String(i), data.slice(data.indexOf(',') + 1));
             (view.scope === 'vault' ? $('vaultStatus') : $('status')).textContent = `Uploading ${filename}: ${formatStorage(Math.min(file.size, (i + 1) * CHUNK_BYTES))} / ${formatStorage(file.size)}`;
           }
           await view.ref.child(key).update({ ready: true, ...(view.scope === 'clips' ? { createdAt: firebase.database.ServerValue.TIMESTAMP } : {}) });
@@ -1524,6 +1913,7 @@ function openVault(animate = false) {
   }
   scopes.vault.ui.Search.focus();
   requestAnimationFrame(() => { for (const rec of scopes.vault.cards.values()) checkExpand(rec); });
+  if (!vaultUnlocked()) promptVaultUnlock();
 }
 function unlockVault() {
   if (!currentUid || activeScope === 'vault' || unlockTimer) return;
@@ -1556,6 +1946,7 @@ function closeVault() {
   cancelDrag();
   if (dialog.open) closeDialog();
   $('vault').hidden = true; $('mainWorkspace').inert = false; activeScope = 'clips'; keyBuffer = ''; keyBufferTarget = null;
+  lockVault(); // Every exit locks; the passphrase is needed again next time.
   scopes.clips.ui.Input.focus({ preventScroll: true });
 }
 $('vaultExit').onclick = closeVault;

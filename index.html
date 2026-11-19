@@ -23,13 +23,13 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20260929-tty-typed">
+<link rel="stylesheet" href="styles.css?v=20261119-vault-e2ee">
 </head>
 <body>
 <section id="signIn" class="sign-in" aria-labelledby="signInTitle">
   <div class="sign-in-card"><h1 id="signInTitle">FADE</h1><p>Sign in with Google. The owner and an invited account share temporary clips; everyone else has a private one-clip workspace.</p>
     <button id="signInButton" class="primary" type="button" disabled>Loading…</button><p id="signInError" role="alert"></p>
-    <p class="sign-in-note">Your clips are stored in Firebase. The vault shortcut only hides its screen; it does not encrypt clips.</p>
+    <p class="sign-in-note">Your clips are stored in Firebase. Temporary clips are not end-to-end encrypted. Vault items are encrypted on your device with your vault passphrase.</p>
   </div>
 </section>
 <section id="mainWorkspace" class="workspace" aria-label="Clipboard" hidden>
@@ -271,6 +271,7 @@ root@fade:~# printf &quot;%08x\n&quot; 429765
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="organizer.js?v=20260924-gallery-fix"></script>
-<script src="app.js?v=20260929-tty-typed"></script>
+<script src="crypto.js?v=20261119-vault-e2ee"></script>
+<script src="app.js?v=20261119-vault-e2ee"></script>
 </body>
 </html>

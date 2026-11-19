@@ -1,6 +1,6 @@
 # Fade
 
-A cross-device clipboard with Google sign-in. Temporary clips fade after ten minutes. The owner also has a private Keep vault for clips that should stay.
+A cross-device clipboard with Google sign-in. Temporary clips fade after ten minutes. The owner also has a private, end-to-end encrypted Keep vault for clips that should stay.
 
 The `iii` vault entry runs for ten seconds as a full-screen Linux-style TTY. Local-only commands type character by character beside a blinking cursor: slow at first, accelerating through second five, then fast through second eight. A vault mount appears for the final two seconds before the terminal slides away. The text is theatrical; it runs no commands and makes no external connection.
 
@@ -11,7 +11,7 @@ The `iii` vault entry runs for ten seconds as a full-screen Linux-style TTY. Loc
 - Add text, links, images, PDFs, SVGs, ZIPs, or other files on one device. Download attachments on another device.
 - Search, sort, pin, label, and organize clips into groups. Layout and collapsed-group preferences are stored in each browser; clipboard content is stored in Firebase.
 - Temporary clips disappear from the app after ten minutes. While an app session is open, it also tries to remove expired records from Firebase.
-- The owner can move clips into the private vault with **Keep**. Type `iii` to open it. This shortcut hides the vault screen; it is not a password.
+- The owner can move clips into the private vault with **Keep**. Type `iii` to open it, then enter the vault passphrase. The shortcut only hides the screen; the passphrase is what protects the vault.
 - Images can be copied or shared with the device's native share controls. Other file types download with their original names. Clipboard permissions and browser support vary.
 - Select, paste, or drag multiple attachments at once with no app-level selection-count or per-file size cap. Images in one selection become one gallery clip; other file types become separate clips. Large files and image galleries are uploaded in 512 KB chunks and fetched on demand. A single supported JPEG, PNG, WebP, or GIF under 7 MB retains its inline preview.
 
@@ -32,7 +32,7 @@ The invited account is identified by its verified Google identity in `app.js` an
 1. Open the app and sign in with Google. Sign in with the same account on each of your own devices.
 2. Type or paste a clip, then select **Add clip**. Use the attachment button to select images or other files.
 3. Tap **Copy** on another device before the temporary clip expires.
-4. If you are the owner, use **Keep** to save a clip to the vault. Type `iii` in the clipboard composer to open the vault.
+4. If you are the owner, type `iii` in the clipboard composer to open the vault. The first time, choose a vault passphrase and save the recovery key. After that, use **Keep** to save a clip to the vault; Keep works while the vault is locked.
 
 On desktop, **Enter** adds a clip and **Shift+Enter** makes a new line. On touch devices, use **Add clip**; **Ctrl/Cmd+Enter** also works. The app supports reduced-motion preferences.
 
@@ -42,13 +42,26 @@ Firebase Realtime Database stores each account's clip metadata and smaller attac
 
 Expiry is enforced in the open app. A large file starts its ten-minute life after its upload finishes; abandoned uploads are cleaned after 24 hours when the app is opened. A scheduled Cloud Function is included for server-side cleanup while no browser is open, but deploying it requires a Blaze plan. On Spark, expired records and orphaned chunks can remain in Firebase if every browser closes before cleanup. Reopen Fade to clear expired records; check Firebase usage after large uploads. The scheduled cleanup function handles expiry and related chunks when deployed on Blaze. The vault has no expiry; moving a file there makes it permanent until deleted. Keep a separate backup of anything you cannot afford to lose.
 
-Fade does not provide end-to-end encryption. Firebase project administrators can access stored content. The Firebase web configuration in `app.js` identifies the project; it is not a private service-account key.
+Temporary clips are not end-to-end encrypted: Firebase project administrators, and the invited account for the owner's board, can read them until they are removed. Do not use the temporary board for passwords or keys. The Firebase web configuration in `app.js` identifies the project; it is not a private service-account key.
+
+## Vault encryption
+
+Vault items are encrypted in the browser before they are written to Firebase, using the Web Crypto API (`crypto.js`). Firebase, Google, and anyone who signs in as the owner see only ciphertext.
+
+- **Keys.** The vault has one ECDH P-256 key pair. The private key is stored only encrypted: once under a key derived from your passphrase (PBKDF2-SHA256, 600,000 iterations, random salt) and once under a random 256-bit recovery key. The public key is stored in plain form so **Keep** can encrypt clips while the vault is locked.
+- **Items.** Each item gets its own AES-256-GCM key derived from a fresh ephemeral key (ECIES with HKDF-SHA256). Text, links, titles, groups, filenames, images, and every file chunk are encrypted. Each ciphertext is bound to its item and part, so swapped or edited data fails to decrypt instead of showing altered content.
+- **Visible metadata.** Item count, saved time, order, pin, color label, and approximate sizes remain visible to Firebase.
+- **Locking.** The unlocked key exists only in the open tab's memory and cannot be exported. The vault locks every time you leave it or sign out.
+- **Recovery.** Setup shows a 52-character recovery key once. Use **Use recovery key** on the unlock screen to set a new passphrase. If both the passphrase and the recovery key are lost, the vault cannot be decrypted by anyone.
+- **Passphrase change.** Select the storage estimate at the top of the vault, then **Change vault passphrase**.
+- **Upgrade.** Vault items saved before encryption are encrypted automatically the first time the owner unlocks the vault, and their plain file parts are removed. Unfinished uploads that were never shown are deleted.
+- **Not covered.** Encryption does not protect against malware or a malicious browser extension on an unlocked device, or against someone who can change the code served to your browser. Items copied out of the vault enter the system clipboard.
 
 ## Deployment
 
 The site is static and has no build step. It can be hosted with GitHub Pages. Google sign-in must be enabled for the Firebase project, and the hosting domain must be authorized in Firebase Authentication settings.
 
-**Deploy both the site and the Realtime Database rules.** Pushing `database.rules.json` to GitHub does not apply the rules to Firebase. In Firebase Console, open **Realtime Database → Rules**, paste the contents of `database.rules.json`, and publish. Check that the Firebase project and the owner's user ID in the code match your project before publishing.
+**Deploy both the site and the Realtime Database rules, together.** The vault rules accept only encrypted records, so an older copy of the site cannot keep clips after the new rules are published. Pushing `database.rules.json` to GitHub does not apply the rules to Firebase. In Firebase Console, open **Realtime Database → Rules**, paste the contents of `database.rules.json`, and publish. Check that the Firebase project and the owner's user ID in the code match your project before publishing.
 
 Alternatively, from the repository root with Firebase CLI configured:
 
@@ -58,7 +71,7 @@ firebase deploy --project fade-self-erasing-clipboard --only database
 
 This command deploys database rules only and works with the Spark plan. The optional server cleanup function requires a separate deployment and a Blaze plan.
 
-After deploying, test with three accounts: the owner can add and keep several clips; the invited account can add pink clips to the shared board but cannot open the vault; another account can add one private temporary clip and cannot keep it. Check that the invited account cannot change the owner's clip colors and that the owner sees the invited account's clips in pink.
+After deploying, test vault encryption: open the vault, set a passphrase, save the recovery key, keep a clip, exit, and confirm the passphrase is required again. Then test with three accounts: the owner can add and keep several clips; the invited account can add pink clips to the shared board but cannot open the vault; another account can add one private temporary clip and cannot keep it. Check that the invited account cannot change the owner's clip colors and that the owner sees the invited account's clips in pink.
 
 For local development, serve the repository root:
 
@@ -74,6 +87,7 @@ Then open `http://localhost:8000`. Clipboard APIs require HTTPS or localhost and
 node --test tests/*.test.cjs
 node --check app.js
 node --check organizer.js
+node --check crypto.js
 ```
 
 These local checks do not replace testing the published Firebase rules with separate Google accounts.
