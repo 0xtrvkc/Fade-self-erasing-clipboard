@@ -198,6 +198,7 @@ body.vault-breaching #mainWorkspace { animation: tty-cut .08s steps(1,end) both;
 .move-buttons { display: flex; gap: 8px; }
 .move-buttons button { flex: 1; }
 .dialog-help { font-size: 12px !important; }
+.recovery-code { display: block; margin: 16px 0; padding: 14px; font: 600 15px/1.7 'JetBrains Mono', monospace; letter-spacing: .04em; word-break: break-all; color: #f5f1e6; background: #14181b; border: 1px dashed #56626b; border-radius: 10px; user-select: all; }
 #toast { position: fixed; z-index: 3000; bottom: max(22px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: max-content; max-width: calc(100vw - 24px); padding: 10px 14px; background: #edf9f1; border: 1px solid #8dc5a3; color: #17321f; box-shadow: 0 8px 40px #0008; border-radius: 10px; font-size: 14px; }
 #toast button { color: #17321f; border-color: #75a686; flex: none; }
 .dragging { opacity: .4; }
