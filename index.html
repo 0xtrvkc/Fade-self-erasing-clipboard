@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Fade — self-erasing clipboard</title>
 
 <!-- iOS home screen icon. -->
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
 
 <!-- Android / general icon -->
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
@@ -16,20 +16,20 @@
 <link rel="manifest" href="manifest.json">
 
 <!-- Makes the status bar match your dark theme when added to home screen -->
-<meta name="theme-color" content="#0a0a0a">
+<meta name="theme-color" content="#1b1d1f">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAIk0lEQVR4nM2bXYxdVRXHf/fOdDottNrSpiRVQpACDlUobQFLwQfABxJ9sCChgBnCR2kVUiBAQtRANGEU3njlgSqJCjQtpiCUhBBf5SPGqEAQpRYsWFo01AClHB7W+s9ed8+d3t57zzn3rmQy9+yzz95r/ffaa6+99l4NyqMGMAJ8mpWfDpwDrAJWAicDy4AveH2AI8B/gXeBfwJ/BV72v1ez9ka9flEi732RBBeNAOuB+4EXMUCKNn8fAgf978NZ6hzxNqa8zbyfRhnM90MjGJNgo3o18H3grFBnHybEH7GR3QPsBw4Bn3idMeA4YAlwEjABrAXWACeGtv4E/BJ4FHivDQ+1UZME3lLgXkx9NXKvAT8HLgIW9NHP8d7G/dhUUPvvAvd53zgvzT766YqiGt4M/Cswtgv4NjCefdPE5u6ofy8A41/T36leLtBcb3tX6G8PsGkW3iohdXAGsDsw8jQ2UpEkbD/TTPZlNCu/EHgq9L8b+Grot3SKKnYNZrgK4E3gylBPo9i3cZqFB2mP6HvA352Xg86b+CiNB6ko2FwU6tswo6UOK1e/QBGIJcAjga8pL49890xqZAT4lXfwCbAl1KlE5Y6RYt+bMd4KjFdpYs8gRMP0hDe8H7jU31el6t1SgwTEpRiPBcZzNLg9N6qR/ze2LgPM6Z3fSqhBWnnWYLwWmL8AJktXIEj4KdLIr/ayYRM+knhbTdIE2YRjnqoyZhu9gY+Ai7ttpCbSqC4Dvuu/xePFGO8FcJWXdTTUsqynAh/4xzd72bCNfAOYh/H8EGllAnOtwXgvMFlOpYPHKGvfAF4gWVMYPuFzWkdSec17jbZs2PO0yjiD9MGN/sFbwBcxxGrzs4+BxPyJwI+AFf58AQmEbZhRbACLMFkK4AavO2MqaL1cjO3eCtKcqtPB6UQNbE/QBG7C+HwDc83BQDjg5V8L320grWSLaeMfSMh7Sb51LB9GWgw8Q3LJBcIazIBL1SXDc173Pn+elk1oLMFU6Ahwfl5pwCQel2JzfNLLF5A2ZRGESJLhfEy2/Zis01qgZeM2b+gZfx6meS+P7jySz3+jv4sg/IMEQlyyJYs05rZYR17fX/zlZbR6gsNGt5NAuMnLchBO8/LR8L+ByVZgsrZ4h+tIBmUuJe2k+iStPguwZflRkjrfRfcgyIBq+7wudjYFfIZtd+NHw0BLSU7ZYySfpBsQFJECk/EzkotME3jFP7rAywZp/KR5Y8BC/72aFHPsBoQ3MT+hEb5Z7+9exm3DCuCwdzA/Y6Ju0va7CfwBU9cJf3cu3YHwrJe9TmuMcb63cxh3oq7yir8LTAyaRoGdJI9UTk03IBwPbAceJsUEpNlPEjZJD/rDj0PndZM0bhF2ggQ2UooA76E7ELRE5iTZfuL1HgD4vT9syCrVRbLODdKoawc6nxT97RUE7QwhyXY5KZrN3/xhrb8cpAHcQhLgh17WDwja/EjwkfBtgcnOAWxZOMVf1mUDYjBjI0mArVQDQtzVnoLJfADs8PKQMxIZq5IUw2uSbNB2bCpAcsvLAmHSy6QJyzCZD0M6VFgUmKuTVgF7nY+dpOBmGSDc6WX/J8UHwGTV4U6tAMRgxk+Br/vzKuAdqgHhOmy5i+GwFgDqmgKy9iPAtd75XtKyVyUIkQfIpsAgjOBCbM4XmNDneHkVIIyRgiO5EXwfql8G5YUtAR4PAswlrftVgvAbksFtuww+7Q+X+8uyHSGhf3YQQAGJcaoFQSdE94T+IHOEHqA+V3gT9YKwBtO69f4sr7DFFa5iMySn4zhsV7cjCPAD6gFh5Sx8QbYZqnI7vCgI8FRovy4QzvTyGP6asR1uYsGBgqQqvRpCdTIOnOC/J0gHE3WD8A52L/GoAREoJySmsJOO1t4mnSivpH4QdgEfk67saf5L1umQGJQbFG1iAcwCU7XzvHwlppY5CHEHWCYIc4Dl/luyxKDoNwgv+wmLq/ETSAcqc4DflgDCjh5BiFd44oFo27C4BN3qL7s5GInBjMf9+zsCCI8FEM7tAYS5fYBwGcn5kU3TwchWf54+GAEbwX6OxiZD53d72SBAuBX4M0nrZPzi0ZgM9PQ0zw9Hn8vKc4q7uuuw9R7S0fqgQFA8IVLHw1EJpONxNbihXUVagxk/I00b3QkeBAhve7mCKnLExHvH4/Eo6PVe+S3MkTnaBYkJbOWQ1gwKhLP8+T0sHC7D16T1gsT1mawtFK3l8/5BvCIT99K/IM2xM7ATmEGBoHV+OfClIEt+za/jFRlIW9d4SWqzv5vn/6/w8v+QjtIGCcL7WI5BJBm+zV7nA47hkpRI6qFNUrwmN4bN/22hc4FwWk0g3B7a2I5pwUm0XrcHuIQersmJjnZRUu/k7R0MAtQFwi2B13nht3hbjQ1OQQ8XJaHzVVk5P9KEjSTVWkF7EG6gfxB0728vrXM5bnbiVVnZsK6vyqpRqZW8vP3At/y9GIi3sQRaBGE36Zi7HQijtHebJ0gg7MKsO5iHpzr5clfaZWmR1ssmlqxUYPvoLUf5JoKgjcdOkoZomS2wwwucUYGwj1YQdGawnJkGLM7pLZR8XV4UG8kTJpS0lCdMCISvYJcvHvZneWoRhMkgzK9JU0fCfpm01GkZmxPeV5owIYrLx9Wky4izpcwQ6udMCJxJLEkyHlo0MK1Yn9VVO3nKzJXUkDITScKdTrqBUWDR1W9mdZX9RRtmJETMLmvHsIzxWFZ+Ea1JU8/S/npcJRRVfRPJUMlif4eZaXMxHU6jKEY1WtKecUzgfL6PMwRpc6KoYkuxHVZMnHydchMnp7BkTLW/j5ISJ/udJ92kzr6IRWL20Dl19kzMmVnLkKbORpJxEjUx97hT8vQhUvL0oVnq5MnTcZSHInk6b2uE2dPnz8acppMxbVlIsgOfAv+jNX3+JSx0/VrWXqnp858Dweio9j7UKNUAAAAASUVORK5CYII=">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20261119-vault-e2ee">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=20261123-mobile">
 </head>
 <body>
 <section id="signIn" class="sign-in" aria-labelledby="signInTitle">
-  <div class="sign-in-card"><h1 id="signInTitle">FADE</h1><p>Sign in with Google. The owner and an invited account share temporary clips; everyone else has a private one-clip workspace.</p>
+  <div class="sign-in-card"><h1 id="signInTitle">FADE</h1><p>A clipboard between your devices. Send text, links, images, or files from one device and pick them up on another. Clips fade after 10 minutes.</p>
     <button id="signInButton" class="primary" type="button" disabled>Loading…</button><p id="signInError" role="alert"></p>
-    <p class="sign-in-note">Your clips are stored in Firebase. Temporary clips are not end-to-end encrypted. Vault items are encrypted on your device with your vault passphrase.</p>
+    <p class="sign-in-note">Sign in with the same Google account on each device. Your clips are stored in Firebase. Temporary clips are not end-to-end encrypted. Vault items are encrypted on your device with your vault passphrase.</p>
   </div>
 </section>
 <section id="mainWorkspace" class="workspace" aria-label="Clipboard" hidden>
@@ -38,10 +38,13 @@
       <div class="brand"><h1>FADE</h1><span class="subtitle">Cross-device clipboard · 10 minute life</span></div>
       <span class="connection" id="status" role="status">Connecting…</span>
       <button class="sign-out" type="button" data-sign-out>Sign out</button>
+      <button class="header-menu" type="button" data-header-menu aria-label="Account and settings">•••</button>
     </div>
     <div class="toolbar" aria-label="Clipboard controls">
-      <label class="search"><span class="sr-only">Search clips</span><input id="clipsSearch" type="search" placeholder="Search clips, titles, groups…" autocomplete="off"></label>
+      <button class="search-toggle" id="clipsSearchToggle" type="button" aria-label="Search clips" aria-expanded="false" aria-controls="clipsSearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button>
+      <label class="search"><span class="sr-only">Search clips</span><input id="clipsSearch" type="search" placeholder="Search clips, titles, groups…" autocomplete="off" spellcheck="false"></label>
       <button class="new-group" id="clipsNewGroup" type="button" hidden>+ Group</button>
+      <button class="view-sheet" id="clipsView" type="button">View</button>
       <select id="clipsType" aria-label="Filter by content type"><option value="all">All types</option><option value="text">Text</option><option value="link">Links</option><option value="image">Images</option><option value="file">Files</option></select>
       <select id="clipsSort" aria-label="Sort clips"><option value="manual">Your order</option><option value="newest">Newest</option><option value="oldest">Oldest</option></select>
       <button class="view-toggle" id="clipsLayout" type="button" aria-label="Use list layout">List</button>
@@ -63,9 +66,10 @@
   </div></main>
   <footer class="composer-footer"><div class="composer">
     <label class="sr-only" for="clipsInput">Add a temporary clip</label>
-    <textarea id="clipsInput" placeholder="Paste or type text / a link…" rows="1"></textarea>
+    <textarea id="clipsInput" placeholder="Paste or type text / a link…" rows="1" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="enter"></textarea>
     <div class="composer-row">
       <button class="image-button" id="clipsImage" type="button" aria-label="Add images or files" title="Add images or files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg></button>
+      <button class="paste-button" id="clipsPaste" type="button" aria-label="Paste from clipboard" title="Paste from clipboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3.5A1.5 1.5 0 0 1 10.5 2h3A1.5 1.5 0 0 1 15 3.5v1"/><path d="M9 11h6M9 15h4"/></svg><span>Paste</span></button>
       <input id="clipsFile" type="file" multiple hidden>
       <select id="clipsDestination" aria-label="Group for new clips" hidden><option value="">Unfiled</option></select>
       <span class="composer-hint">Enter to add · Shift+Enter for a new line</span>
@@ -76,12 +80,14 @@
 <section id="vault" class="workspace" aria-label="Vault" hidden>
   <header class="app-header">
     <div class="header-inner">
-      <div class="brand"><h2>THE VAULT</h2><span class="subtitle">Your permanent workspace · no expiry</span><button id="vaultStorage" class="storage-status" type="button" aria-label="Vault storage usage and budget"><meter id="vaultStorageMeter" min="0" max="100" value="0" aria-label="Vault budget used" hidden></meter><span id="vaultStorageText" role="status">Loading storage…</span></button></div>
-      <span class="connection" id="vaultStatus" role="status">Connecting…</span><button class="sign-out" type="button" data-sign-out>Sign out</button><button id="vaultExit" type="button">Exit ×</button>
+      <button id="vaultBack" class="vault-back" type="button" aria-label="Exit vault">‹</button><div class="brand"><h2>THE VAULT</h2><span class="subtitle">Your permanent workspace · no expiry</span><button id="vaultStorage" class="storage-status" type="button" aria-label="Vault storage usage and budget"><meter id="vaultStorageMeter" min="0" max="100" value="0" aria-label="Vault budget used" hidden></meter><span id="vaultStorageText" role="status">Loading storage…</span></button></div>
+      <span class="connection" id="vaultStatus" role="status">Connecting…</span><button class="sign-out" type="button" data-sign-out>Sign out</button><button id="vaultExit" type="button">Exit ×</button><button class="header-menu" type="button" data-header-menu aria-label="Vault settings and account">•••</button>
     </div>
     <div class="toolbar" aria-label="Vault controls">
-      <label class="search"><span class="sr-only">Search vault</span><input id="vaultSearch" type="search" placeholder="Search clips, titles, groups…" autocomplete="off"></label>
+      <button class="search-toggle" id="vaultSearchToggle" type="button" aria-label="Search vault" aria-expanded="false" aria-controls="vaultSearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button>
+      <label class="search"><span class="sr-only">Search vault</span><input id="vaultSearch" type="search" placeholder="Search clips, titles, groups…" autocomplete="off" spellcheck="false"></label>
       <button class="new-group" id="vaultNewGroup" type="button">+ Group</button>
+      <button class="view-sheet" id="vaultView" type="button">View</button>
       <select id="vaultType" aria-label="Filter by content type"><option value="all">All types</option><option value="text">Text</option><option value="link">Links</option><option value="image">Images</option><option value="file">Files</option></select>
       <select id="vaultSort" aria-label="Sort vault"><option value="manual">Your order</option><option value="title-asc">Title A–Z</option><option value="title-desc">Title Z–A</option><option value="newest">Date: newest first</option><option value="oldest">Date: oldest first</option></select>
       <button class="view-toggle" id="vaultLayout" type="button" aria-label="Use list layout">List</button>
@@ -103,9 +109,10 @@
   </div></main>
   <footer class="composer-footer"><div class="composer">
     <label class="sr-only" for="vaultInput">Add to vault</label>
-    <textarea id="vaultInput" placeholder="Add a note or link to the vault…" rows="1"></textarea>
+    <textarea id="vaultInput" placeholder="Add a note or link to the vault…" rows="1" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" enterkeyhint="enter"></textarea>
     <div class="composer-row">
       <button class="image-button" id="vaultImage" type="button" aria-label="Add images or files" title="Add images or files"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg></button>
+      <button class="paste-button" id="vaultPaste" type="button" aria-label="Paste from clipboard" title="Paste from clipboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4.5V3.5A1.5 1.5 0 0 1 10.5 2h3A1.5 1.5 0 0 1 15 3.5v1"/><path d="M9 11h6M9 15h4"/></svg><span>Paste</span></button>
       <input id="vaultFile" type="file" multiple hidden>
       <label for="vaultDestination">Add to</label><select id="vaultDestination" aria-label="Group for new clips"><option value="">Unfiled</option></select>
       <span class="composer-hint">Enter to add · Shift+Enter for a new line</span>
@@ -114,6 +121,7 @@
   </div></footer>
 </section>
 <div id="unlockPopup" aria-hidden="true">
+  <div class="tty-skip">tap to skip</div>
   <div class="tty-header">FADE Linux 1.0&nbsp;&nbsp; tty1</div>
   <div class="tty-window"><pre id="ttySource" hidden>FADE Linux (tty1)
 fade login: iii
@@ -245,14 +253,14 @@ root@fade:~# printf &quot;%08x\n&quot; 429765
     <div>root@fade:/mnt/iii# <span class="tty-cursor">_</span></div>
   </div>
 </div>
-<dialog id="keepWarning" closedby="none" aria-labelledby="keepWarningTitle" aria-describedby="keepWarningDescription">
+<dialog id="keepWarning" closedby="any" aria-labelledby="keepWarningTitle" aria-describedby="keepWarningDescription">
   <div class="warning-shell">
     <div class="warning-laser" aria-hidden="true"></div>
     <button id="keepWarningClose" type="button" aria-label="Close warning">×</button>
     <div class="warning-code">FADE // VAULT SECURITY</div>
     <div class="warning-sigil" aria-hidden="true">!</div>
     <p class="warning-eyebrow">RESTRICTED OPERATION</p>
-    <h2 id="keepWarningTitle" aria-label="UNAUTHORIZED" data-text="UNAUTHORIZED">UNAUTHORIZED</h2>
+    <h2 id="keepWarningTitle" data-text="UNAUTHORIZED">UNAUTHORIZED</h2>
     <p id="keepWarningDescription">WARNING. Your keep request has been denied.</p>
     <div class="warning-terminal" aria-hidden="true">
       <span>&gt; PERSISTENCE GATE ........ LOCKED</span>
@@ -272,6 +280,6 @@ root@fade:~# printf &quot;%08x\n&quot; 429765
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="organizer.js?v=20260924-gallery-fix"></script>
 <script src="crypto.js?v=20261119-vault-e2ee"></script>
-<script src="app.js?v=20261119-vault-e2ee"></script>
+<script src="app.js?v=20261123-mobile"></script>
 </body>
 </html>

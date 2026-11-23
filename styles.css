@@ -3,7 +3,8 @@
   --bg: #1b1d1f; --raised: #232629; --line: #3b4145; --text: #f5f1e6; --muted: #abb1b4;
   --paper: #f5f1e6; --ink: #2b2a26; --ink-dim: #646052; --cyan: #64f5e8;
   --focus: #92e6b3; --danger: #ff8f9a; --accent: #1f7a4d;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 body.girlfriend-theme {
   --bg: #281923; --raised: #35222e; --line: #715066;
@@ -27,7 +28,7 @@ body.girlfriend-theme .clip button.copied { background: #a63770; border-color: #
 body.girlfriend-theme .clip :focus-visible { outline-color: #bd348b; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { margin: 0; height: 100vh; height: 100dvh; background: var(--bg); color: var(--text); overflow: hidden; }
+body { margin: 0; height: 100vh; height: var(--app-h, 100dvh); background: var(--bg); color: var(--text); overflow: hidden; }
 button, input, textarea, select { font: inherit; }
 button, select { touch-action: manipulation; }
 button { cursor: pointer; }
@@ -59,6 +60,7 @@ input[type=search]::-webkit-search-cancel-button { cursor: pointer; }
 .toolbar .view-toggle { white-space: nowrap; }
 .primary { background: #347e50; border-color: #347e50; color: #fff; font-weight: 700; }
 .primary:hover:not(:disabled) { background: #3d915d; border-color: #3d915d; }
+.primary:disabled { background: transparent; border-color: var(--line); color: var(--muted); opacity: 1; }
 .bulk-bar { flex: none; border-bottom: 1px solid var(--line); background: #2b3330; }
 .bulk-inner { padding: 8px 24px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .selection-count { font-size: 14px; margin-right: auto; }
@@ -199,7 +201,7 @@ body.vault-breaching #mainWorkspace { animation: tty-cut .08s steps(1,end) both;
 .move-buttons button { flex: 1; }
 .dialog-help { font-size: 12px !important; }
 .recovery-code { display: block; margin: 16px 0; padding: 14px; font: 600 15px/1.7 'JetBrains Mono', monospace; letter-spacing: .04em; word-break: break-all; color: #f5f1e6; background: #14181b; border: 1px dashed #56626b; border-radius: 10px; user-select: all; }
-#toast { position: fixed; z-index: 3000; bottom: max(22px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: max-content; max-width: calc(100vw - 24px); padding: 10px 14px; background: #edf9f1; border: 1px solid #8dc5a3; color: #17321f; box-shadow: 0 8px 40px #0008; border-radius: 10px; font-size: 14px; }
+#toast { position: fixed; z-index: 3000; bottom: calc(var(--bottom-inset, 0px) + 12px); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; width: max-content; max-width: calc(100vw - 24px); padding: 10px 14px; background: #edf9f1; border: 1px solid #8dc5a3; color: #17321f; box-shadow: 0 8px 40px #0008; border-radius: 10px; font-size: 14px; }
 #toast button { color: #17321f; border-color: #75a686; flex: none; }
 .dragging { opacity: .4; }
 .drag-ghost { position: fixed; pointer-events: none; z-index: 2500; padding: 12px 16px; max-width: 260px; border: 1px solid #a7eabd; border-radius: 8px; background: #203a2d; color: #fff; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-shadow: 0 10px 40px #0008; }
@@ -434,3 +436,122 @@ body.image-drop-ready::after {
 .sign-in-note { opacity: .75; font-size: .85rem; }
 #signInError { color: #ff6b6b; min-height: 1.5em; }
 .sign-out { margin-left: 12px; }
+
+/* ---- Mobile-first refinements ------------------------------------------------------------- */
+/* Monospace stays where it carries meaning: clip content, timers, codes and the terminal scenes. */
+.clip-content, .composer textarea, .timer, .kept-date, .recovery-code, .tag, .group-count,
+#keepWarning, .drag-ghost, .vheader-input { font-family: var(--mono); }
+body.girlfriend-theme .primary:disabled, #vault .primary:disabled { background: transparent; border-color: var(--line); color: var(--muted); }
+
+/* Controls that only appear on phones. */
+.header-menu, .search-toggle, .view-sheet, .vault-back { display: none; }
+.search-toggle svg { width: 21px; height: 21px; }
+.paste-button { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.paste-button svg { width: 20px; height: 20px; }
+.paste-button span { font-size: 14px; }
+.timer { white-space: nowrap; }
+
+/* Keep's card button is replaced by the one in the clip sheet on touch screens. */
+.sheet-keep { display: none; }
+
+/* The unlock scene can be skipped after a moment. */
+#unlockPopup.show { pointer-events: auto; }
+.tty-skip { position: absolute; z-index: 5; right: 14px; top: 10px; font-size: 12px; color: #6f806f; opacity: 0; transition: opacity .3s; }
+#unlockPopup.skippable .tty-skip { opacity: 1; }
+#unlockPopup.show.quick { animation-duration: 1.2s; }
+#unlockPopup.show.quick .tty-final { animation: none; opacity: 1; }
+#unlockPopup.show.quick .tty-cursor { animation: none; }
+#unlockPopup.quick .tty-skip { display: none; }
+@keyframes tty-fade { 0%,70% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) {
+  #unlockPopup.show.quick { animation-name: tty-fade; }
+}
+
+/* Fine pointers keep the drag handle and the inline header editor. Touch screens get a lighter card. */
+@media (pointer: coarse) {
+  .drag-handle { display: none; }
+  .clip:not([data-vault]) .card-keep { display: none; }
+  .sheet-keep { display: block; width: 100%; margin-top: 8px; }
+  .vheader:has(> .vheader-button.is-empty:not([hidden])) { display: none; }
+  #vault .clip > .vheader:has(> .vheader-button.is-empty:not([hidden])) { display: none; }
+  .vheader-button { min-height: 44px; }
+  .clip { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .clip:active { transform: scale(.995); }
+  /* iOS zooms into form controls under 16px. */
+  select, input, textarea, .toolbar select, .composer-row select { font-size: 16px; }
+}
+
+/* Bottom-sheet details for phones. */
+@media (max-width: 700px) {
+  .subtitle { display: none; }
+  .brand h1::after { display: none; }
+  .header-inner { padding: max(10px, env(safe-area-inset-top)) 14px 8px; gap: 8px; align-items: center; }
+  .connection { margin-left: auto; }
+  .sign-out, #vaultExit, #vault .storage-status { display: none; }
+  .header-menu { display: inline-flex; align-items: center; justify-content: center; width: 44px; padding: 0; flex: none; letter-spacing: 1px; }
+  .vault-back { display: inline-flex; align-items: center; justify-content: center; width: 44px; padding: 0 0 3px; flex: none; font-size: 28px; line-height: 1; }
+  #vault .header-inner { flex-wrap: nowrap; }
+  #vault .brand { flex: 0 1 auto; }
+  #vaultStatus { margin-left: auto; }
+
+  /* One compact row: search icon · group · view · select. Search opens its own row. */
+  .toolbar { padding: 0 14px 10px; gap: 8px; flex-wrap: wrap; }
+  .toolbar .search { display: none; }
+  .toolbar.search-open .search { display: block; order: 10; flex: 1 1 100%; }
+  .search-toggle { display: inline-flex; align-items: center; justify-content: center; width: 44px; padding: 0; flex: none; }
+  .search-toggle[aria-expanded=true] { border-color: var(--focus); }
+  .view-sheet { display: inline-flex; align-items: center; justify-content: center; flex: 1 1 0; }
+  .view-sheet.filtered::after { content: ''; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; background: var(--focus); }
+  .toolbar .new-group, .toolbar .select-toggle { flex: 1 1 0; }
+  .toolbar > select, .toolbar .view-toggle { display: none; }
+
+  /* Hide the toolbar while typing, so the board stays visible above the keyboard. */
+  body.composing .toolbar, body.composing .board-heading { display: none; }
+
+  /* Composer: attach · paste on the left, Add on the right edge. */
+  .composer-row .primary { margin-left: auto; }
+  .paste-button span { display: none; }
+  .paste-button { width: 44px; justify-content: center; padding: 0; }
+  .composer-row select { flex: 1 1 auto; width: 0; }
+
+  /* Selection actions sit at the bottom, in place of the composer. */
+  .board-scroll { order: 2; }
+  .bulk-bar { order: 3; border-bottom: 0; border-top: 1px solid var(--line); }
+  .bulk-inner { padding: 8px 14px max(8px, env(safe-area-inset-bottom)); }
+  .composer-footer { order: 4; }
+  .workspace.selecting .composer-footer { display: none; }
+  .bulk-inner button { flex: 1 1 auto; }
+  .selection-count { flex-basis: auto; margin-right: auto; }
+
+  /* Sheets: grabber, sticky action row. */
+  #actionDialog .dialog-header { padding-top: 22px; }
+  #actionDialog .dialog-header::before { content: ''; position: absolute; top: 8px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: #56626b; }
+  #actionDialog .dialog-actions { position: sticky; bottom: calc(-1 * env(safe-area-inset-bottom)); background: #22272b; margin-inline: -18px; padding: 12px 18px max(12px, env(safe-area-inset-bottom)); margin-bottom: -20px; }
+  .view-options .field { margin: 12px 0; }
+
+  /* Vault: readable cards instead of a 960px spreadsheet. */
+  #vaultScroll { overflow-x: hidden; }
+  #vaultBoard { min-width: 0; padding: 14px 12px 28px; }
+  #vault .sheet-columns { display: none; }
+  #vault .group { border: 0; }
+  #vault .group-heading { background: transparent; padding: 0 2px 7px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
+  #vault .group-items { display: grid; gap: 10px; }
+  #vault .clip { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "idx title date" "idx preview preview" "idx type actions";
+    border: 1px solid #29444b; border-radius: 6px; background: #101a20; column-gap: 0; }
+  #vault .clip:nth-of-type(even) { background: #101a20; }
+  #vault .clip:last-child { border-bottom: 1px solid #29444b; }
+  #vault .clip > * { border-right: 0; padding: 8px 12px; }
+  #vault .clip > .sheet-index { grid-area: idx; padding: 0; border-radius: 6px 0 0 6px; }
+  #vault .clip > .vheader { grid-area: title; padding-bottom: 0; }
+  #vault .clip > .sheet-preview { grid-area: preview; padding-block: 4px; }
+  #vault .clip > .sheet-type { grid-area: type; flex-direction: row; align-items: center; justify-content: flex-start; gap: 10px; }
+  #vault .clip > .kept-date { grid-area: date; justify-content: flex-end; padding-bottom: 0; white-space: nowrap; }
+  #vault .clip > .clip-actions { grid-area: actions; padding-top: 4px; }
+  #vault .clip-actions button { min-height: 44px; padding: 8px 14px; font-size: 14px; }
+  #vault .clip-actions .more-button { flex-basis: 44px; }
+  #vault .row-number { display: none; }
+  #vault .sheet-index .clip-selector { min-width: 44px; }
+  #vault .clip-content { max-height: 4.5em; font-size: 14px; }
+  #vault .vheader-text { font-size: 16px; }
+  #vault .vheader-button { min-height: 32px; }
+}

@@ -36,6 +36,14 @@ The invited account is identified by its verified Google identity in `app.js` an
 
 On desktop, **Enter** adds a clip and **Shift+Enter** makes a new line. On touch devices, use **Add clip**; **Ctrl/Cmd+Enter** also works. The app supports reduced-motion preferences.
 
+### On a phone
+
+- **Paste** (clipboard icon next to the attachment button) adds whatever is on the clipboard as a new clip in one tap. iOS shows its own Paste confirmation.
+- **Tap a card** to copy it. While selecting, a tap selects the card. Titles, Keep and moving clips are in each card's **•••** sheet.
+- **Share to Fade (Android):** install Fade to the home screen, then choose Fade in any app's share sheet. Shared text, links and files become clips.
+- **iOS Shortcuts:** open `https://<your-site>/?text=<text>` to place text in the composer for review, then tap **Add clip**. `?compose=1` just focuses the composer (also the home-screen "New clip" shortcut on Android).
+- The `iii` vault scene plays in full once per tab session and can be skipped by tapping after a moment. Later entries, and devices with Reduce Motion on, get a one-second version.
+
 ## Data and expiry
 
 Firebase Realtime Database stores each account's clip metadata and smaller attachments under `users/<uid>/clips` and the owner's kept items under `users/<owner uid>/kept`. The invited account uses the owner's temporary clipboard path. Database rules control who can read and write each path; hiding a button in the app is not an access control. Files are base64 encoded, so they use roughly one-third more database space than their original size. Large-file and gallery chunks are stored separately under `users/<uid>/fileData/<clipId>`; the board only syncs metadata. Very large files can still fail because of available database space, browser memory, upload time, or network limits. The app estimates visible workspace use and warns when an upload would put it above 1 GB; it cannot see your project-wide Firebase usage or enforce the plan quota. See Firebase Console → Realtime Database → Usage for actual usage. Large-file bytes download only when someone selects Download. Smaller inline images still sync with the board.

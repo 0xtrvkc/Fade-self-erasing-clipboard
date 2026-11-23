@@ -91,7 +91,8 @@ function savePreferences(view) {
 function makeView(scope) {
   const prefs = readPreferences(scope);
   const ids = ['Board', 'Scroll', 'Search', 'Type', 'Sort', 'Layout', 'Select', 'Bulk', 'SelectionCount',
-    'SelectAll', 'BulkShare', 'BulkMove', 'BulkDelete', 'Done', 'NewGroup', 'Count', 'Empty', 'Input', 'Image', 'File', 'Destination', 'Add'];
+    'SelectAll', 'BulkShare', 'BulkMove', 'BulkDelete', 'Done', 'NewGroup', 'Count', 'Empty', 'Input', 'Image', 'File', 'Destination', 'Add',
+    'View', 'SearchToggle', 'Paste'];
   return { scope, ref: null, items: {}, cards: new Map(), sections: new Map(), groups: M.groups({}, Array.isArray(prefs.groups) ? prefs.groups : []),
     collapsed: new Set(Array.isArray(prefs.collapsed) ? prefs.collapsed.filter(x => typeof x === 'string') : []),
     layout: scope === 'vault' ? (prefs.layout === 'comfortable' ? 'comfortable' : 'sheet') : prefs.layout === 'list' ? 'list' : 'grid', sort: ['manual', 'newest', 'oldest', 'title-asc', 'title-desc'].includes(prefs.sort) ? prefs.sort : 'manual',
@@ -158,6 +159,19 @@ function button(text, action, className = '') {
   return el;
 }
 function announce(text) { $('announcer').textContent = text; }
+const coarsePointer = () => matchMedia('(pointer: coarse)').matches;
+const narrowScreen = () => matchMedia('(max-width: 700px)').matches;
+// Status-bar colour follows the visible screen.
+function updateThemeColor() {
+  const meta = document.querySelector('meta[name=theme-color]');
+  if (meta) meta.content = activeScope === 'vault' ? '#070b0e' : girlfriend ? '#281923' : '#1b1d1f';
+}
+// Toasts sit just above whatever occupies the bottom of the screen (composer or selection bar).
+function updateBottomInset() {
+  const scroll = scopes[activeScope]?.ui.Scroll;
+  const bottom = scroll && scroll.offsetParent ? scroll.getBoundingClientRect().bottom : innerHeight;
+  document.documentElement.style.setProperty('--bottom-inset', Math.max(0, Math.round(innerHeight - bottom)) + 'px');
+}
 function toast(message, action, actionText = 'Undo', duration = 6000) {
   clearTimeout(toastTimeout);
   $('toastMessage').textContent = message;
@@ -437,9 +451,10 @@ function vaultForm(body, submitText, onSubmit, extra = []) {
     const controls = [...form.querySelectorAll('button, input')];
     controls.forEach(el => { el.disabled = true; });
     error.textContent = 'Working…';
+    dialogBusy++;
     try { await onSubmit(); error.textContent = ''; }
     catch (err) { error.textContent = err.message || 'Something went wrong. Please try again.'; }
-    finally { controls.forEach(el => { el.disabled = false; }); }
+    finally { dialogBusy--; controls.forEach(el => { el.disabled = false; }); }
   };
   body.append(form);
   return { form, error, actions, finish: () => form.append(error, actions) };
@@ -632,12 +647,14 @@ function initFirebase() {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
     auth = firebase.auth();
+    auth.getRedirectResult?.().catch(err => { $('signInError').textContent = err.message || 'Sign-in failed. Please try again.'; });
     auth.onAuthStateChanged(async user => {
       stopSession();
       if (!user) { $('signIn').hidden = false; $('signInButton').disabled = false; $('signInButton').textContent = 'Continue with Google'; return; }
       currentUid = user.uid;
       girlfriend = user.emailVerified && user.email?.toLowerCase() === GIRLFRIEND_EMAIL;
       document.body.classList.toggle('girlfriend-theme', girlfriend);
+      updateThemeColor();
       $('clipsBulkKeep').hidden = !owner();
       $('clipsNewGroup').hidden = girlfriend;
       $('clipsSelect').hidden = girlfriend;
@@ -664,6 +681,8 @@ function initFirebase() {
         if (connected) { pendingExpiry.clear(); for (const key of expiryQueue) purgeExpired(key); tick(); }
       });
       listen(scopes.clips);
+      handleIncomingShare();
+      requestAnimationFrame(updateBottomInset);
     }, err => { $('signInError').textContent = err.message || 'Could not restore sign-in.'; $('signInButton').disabled = false; });
   } catch (err) {
     console.error(err);
@@ -679,7 +698,7 @@ function stopSession() {
   clearTimeout(unlockTimer); clearTimeout(unlockFinishTimer); unlockTimer = unlockFinishTimer = null;
   stopVaultTyping();
   document.body.classList.remove('vault-breaching');
-  $('unlockPopup').classList.remove('show');
+  $('unlockPopup').classList.remove('show', 'skippable', 'quick'); $('unlockPopup').onclick = null;
   $('vault').classList.remove('vault-entering', 'vault-preparing');
   cancelDrag(); cancelKeepHold();
   if (dialog.open) closeDialog();
@@ -698,13 +717,25 @@ function stopSession() {
   $('clipsSelect').hidden = false;
   activeScope = 'clips'; $('mainWorkspace').inert = false; $('vault').hidden = true; $('mainWorkspace').hidden = true; $('signIn').hidden = false;
   $('toast').hidden = true;
+  document.body.classList.remove('composing');
+  updateThemeColor();
 }
 $('signInButton').onclick = async () => {
   if (!auth) { location.reload(); return; }
   if (auth?.currentUser) { location.reload(); return; }
   $('signInButton').disabled = true; $('signInError').textContent = '';
-  try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
-  catch (err) { $('signInError').textContent = err.code === 'auth/popup-blocked' ? 'Allow popups for this page and try again.' : (err.message || 'Sign-in failed.'); $('signInButton').disabled = false; }
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try { await auth.signInWithPopup(provider); }
+  catch (err) {
+    if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/web-storage-unsupported'].includes(err.code)) {
+      // Installed home-screen apps and some mobile browsers cannot open the popup; try a full-page redirect.
+      try { await auth.signInWithRedirect(provider); return; }
+      catch (redirectErr) { err = redirectErr; }
+    }
+    if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') { $('signInButton').disabled = false; return; }
+    $('signInError').textContent = err.code === 'auth/popup-blocked' ? 'Allow popups for this page and try again.' : (err.message || 'Sign-in failed.');
+    $('signInButton').disabled = false;
+  }
 };
 document.querySelectorAll('[data-sign-out]').forEach(btn => btn.onclick = () => auth.signOut().catch(err => toast(err.message || 'Could not sign out.')));
 
@@ -745,7 +776,7 @@ function createSection(view, group) {
     });
     section.append(heading, columns, items);
   } else section.append(heading, items);
-  const rec = { section, name, toggle, count, items, empty, menu };
+  const rec = { section, heading, name, toggle, count, items, empty, menu };
   view.sections.set(id, rec);
   return rec;
 }
@@ -788,6 +819,8 @@ function render(view) {
     rec.count.textContent = filtered ? `${keys.length}/${groupTotal}` : groupTotal;
     rec.menu.setAttribute('aria-label', 'Manage group: ' + (g?.name || 'Unfiled'));
     rec.section.hidden = filtered ? keys.length === 0 : !id && total === 0 && view.groups.length === 0;
+    // Without any groups, the "Unfiled" heading is structure around nothing.
+    rec.heading.hidden = !id && view.groups.length === 0;
     const collapsed = view.collapsed.has(id) && !filtered;
     for (const control of rec.section.querySelectorAll('[data-sort-column]')) {
       const title = control.dataset.sortColumn === 'title';
@@ -818,6 +851,9 @@ function render(view) {
     element('p', '', filtered ? 'Try a different search or choose All types.' : view.scope === 'vault' ? 'Keep something from Fade or add it below. It stays here until you delete it.' : 'Paste text, a link, or an image below. Pick it up on another device before it fades.'));
   updateDestination(view);
   updateSelection(view);
+  updateComposerState(view);
+  view.ui.View.classList.toggle('filtered', view.type !== 'all' || view.sort !== 'manual');
+  view.ui.View.setAttribute('aria-label', 'View options' + (view.type !== 'all' || view.sort !== 'manual' ? ' (filtered or sorted)' : ''));
   if (focusedInside && focus.isConnected && !focus.closest('[hidden]') && !dialog.open) {
     focus.focus({ preventScroll: true });
     if (selection) focus.setSelectionRange(...selection);
@@ -825,20 +861,23 @@ function render(view) {
 }
 function updateSelection(view) {
   view.ui.Bulk.hidden = !view.selecting;
+  view.ui.Board.closest('.workspace').classList.toggle('selecting', view.selecting);
   view.ui.Select.setAttribute('aria-pressed', String(view.selecting));
-  view.ui.Select.textContent = view.selecting ? 'Selecting' : 'Select';
+  view.ui.Select.textContent = view.selecting ? 'Cancel' : 'Select';
   view.ui.SelectionCount.textContent = view.selected.size + ' selected';
   view.ui.BulkMove.disabled = view.ui.BulkDelete.disabled = view.selected.size === 0;
   const imageCount = getSelected(view).reduce((sum, key) => sum + (albumAttachments(view.items[key]).length || imageContents(view.items[key]).length), 0);
   view.ui.BulkShare.disabled = imageCount === 0;
+  view.ui.BulkShare.hidden = imageCount === 0;
   view.ui.BulkShare.textContent = imageCount > 1 ? `Share ${imageCount} images` : 'Share image';
   if (view.scope === 'clips') $('clipsBulkKeep').disabled = !owner() || view.selected.size === 0;
   view.ui.SelectAll.textContent = view.visible.length && view.selected.size === view.visible.length ? 'Deselect all' : 'Select all';
   for (const [key, card] of view.cards) {
-    card.selector.hidden = view.scope !== 'vault' && !view.selecting;
+    card.selector.hidden = (view.scope !== 'vault' || coarsePointer()) && !view.selecting;
     card.checkbox.checked = view.selected.has(key);
     card.el.classList.toggle('selected', view.selected.has(key));
   }
+  requestAnimationFrame(updateBottomInset);
 }
 function updateDestination(view) {
   const select = view.ui.Destination;
@@ -889,6 +928,7 @@ function bindKeepHold(btn, save, after = () => {}) {
       if (activeKeepHold !== hold) return;
       if (!btn.isConnected || btn.disabled || document.hidden) { cancelKeepHold(); return; }
       cancelKeepHold();
+      try { navigator.vibrate?.(15); } catch { /* Haptics are optional. */ }
       busy = true; btn.disabled = true; btn.textContent = 'Keeping…';
       try { await save(); }
       catch (err) { toast(err.message || 'Could not keep this clip.'); }
@@ -902,8 +942,9 @@ function bindKeepHold(btn, save, after = () => {}) {
   });
   btn.addEventListener('pointermove', e => {
     if (activeKeepHold?.btn !== btn || activeKeepHold.id !== e.pointerId) return;
-    const r = btn.getBoundingClientRect();
-    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) cancelKeepHold();
+    // Fingers drift while holding; allow a little slack before cancelling.
+    const r = btn.getBoundingClientRect(), slack = e.pointerType === 'touch' ? 16 : 4;
+    if (e.clientX < r.left - slack || e.clientX > r.right + slack || e.clientY < r.top - slack || e.clientY > r.bottom + slack) cancelKeepHold();
   });
   btn.addEventListener('pointerup', e => {
     if (activeKeepHold?.btn === btn && activeKeepHold.id === e.pointerId) cancelKeepHold(true);
@@ -930,10 +971,8 @@ function bindKeepHold(btn, save, after = () => {}) {
 }
 window.addEventListener('blur', () => cancelKeepHold());
 document.addEventListener('visibilitychange', () => { if (document.hidden) cancelKeepHold(); });
-$('keepWarning').addEventListener('cancel', e => e.preventDefault());
-$('keepWarning').addEventListener('keydown', e => {
-  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); }
-});
+// Escape, Android back and a backdrop tap all close the warning; it reveals nothing.
+$('keepWarning').addEventListener('click', e => { if (e.target === $('keepWarning')) $('keepWarning').close(); });
 $('keepWarningClose').onclick = () => $('keepWarning').close();
 
 function createCard(view, key, item) {
@@ -977,9 +1016,10 @@ function createCard(view, key, item) {
   rec.content.id = view.scope + '-content-' + key;
   rec.expand.setAttribute('aria-controls', rec.content.id);
   const actions = element('div', 'clip-actions');
-  actions.append(button(item.type === 'file' ? 'Download' : item.content === 'album' || imageContents(item).length > 1 ? 'Open images' : 'Copy', e => rec.item.type === 'file' ? downloadFile(rec.item, view, rec.key) : rec.item.content === 'album' || imageContents(rec.item).length > 1 ? openImages(rec.item, view, rec.key) : copyItem(rec.item, e.currentTarget)));
+  rec.primary = button(item.type === 'file' ? 'Download' : item.content === 'album' || imageContents(item).length > 1 ? 'Open images' : 'Copy', e => rec.item.type === 'file' ? downloadFile(rec.item, view, rec.key) : rec.item.content === 'album' || imageContents(rec.item).length > 1 ? openImages(rec.item, view, rec.key) : copyItem(rec.item, e.currentTarget));
+  actions.append(rec.primary);
   if (view.scope === 'clips' && owner()) {
-    const keep = button('Keep');
+    const keep = button('Keep', null, 'card-keep');
     bindKeepHold(keep, () => keepItems(view, [key]));
     actions.append(keep);
   }
@@ -989,6 +1029,7 @@ function createCard(view, key, item) {
   more.setAttribute('aria-label', 'Organize clip: ' + clipLabel(item));
   actions.append(more);
   if (view.scope === 'vault') {
+    el.dataset.vault = '';
     rec.rowNumber = element('span', 'row-number');
     const row = element('div', 'sheet-index'); row.append(rec.rowNumber, rec.selector, rec.handle);
     const preview = element('div', 'sheet-preview'); preview.append(rec.content, rec.expand);
@@ -1001,6 +1042,14 @@ function createCard(view, key, item) {
     track.setAttribute('aria-hidden', 'true');
     track.append(rec.progress); el.append(track);
   }
+  // On touch screens the whole card is a target: tap copies (or toggles selection while selecting).
+  el.addEventListener('click', e => {
+    if (!coarsePointer() || e.target.closest('button, a, input, label, select, textarea, form')) return;
+    if (getSelection()?.toString()) return;
+    if (view.selecting) { rec.checkbox.checked = !rec.checkbox.checked; rec.checkbox.onchange(); return; }
+    if (rec.item.type === 'file') return; // Downloads stay an explicit choice.
+    rec.primary.click();
+  });
   updateCard(view, rec, item);
   return rec;
 }
@@ -1009,7 +1058,7 @@ function updateCard(view, rec, item) {
   rec.item = item;
   rec.tag.textContent = item.type === 'image' && (albumAttachments(item).length || imageContents(item).length) > 1 ? (albumAttachments(item).length || imageContents(item).length) + ' images' : item.type;
   rec.el.style.setProperty('--card-color', girlfriend ? pinkColor(item.color || rec.key) : M.color(item.color) || M.defaultColor(rec.key));
-  rec.el.setAttribute('aria-label', clipLabel(item));
+  rec.el.setAttribute('aria-labelledby', rec.content.id);
   rec.handle.setAttribute('aria-label', 'Move clip: ' + clipLabel(item));
   rec.checkbox.setAttribute('aria-label', 'Select clip: ' + clipLabel(item));
   rec.pin.hidden = !item.pinned;
@@ -1139,10 +1188,9 @@ function tick() {
     if (!stamp) { rec.time.textContent = 'Syncing time…'; continue; }
     const remaining = Math.max(0, Math.min(M.TTL, M.TTL - (now() - stamp)));
     const frac = remaining / M.TTL;
-    rec.time.textContent = `${Math.floor(remaining / 60000)}:${String(Math.floor(remaining % 60000 / 1000)).padStart(2, '0')}`;
+    rec.time.textContent = `${Math.floor(remaining / 60000)}:${String(Math.floor(remaining % 60000 / 1000)).padStart(2, '0')} left`;
     rec.time.className = 'timer' + (remaining < 30000 ? ' danger' : remaining < 120000 ? ' warn' : '');
     rec.time.title = 'Expires ' + new Date(stamp + M.TTL).toLocaleTimeString();
-    rec.content.style.opacity = String(.72 + .28 * frac);
     rec.progress.style.transform = `scaleX(${frac})`;
   }
   if (changed) render(view);
@@ -1237,7 +1285,7 @@ function createHeader(view, key, initialTitle){
     if(restoreFocus && el.isConnected && activeScope === view.scope) titleBtn.focus();
   }
 
-  titleBtn.onclick = () => {
+  const open = () => {
     input.value = savedTitle;
     setStatus('');
     titleBtn.hidden = true;
@@ -1246,6 +1294,7 @@ function createHeader(view, key, initialTitle){
     input.focus();
     input.select();
   };
+  titleBtn.onclick = open;
   cancelBtn.onclick = closeEditor;
   input.addEventListener('keydown', e => {
     if(e.isComposing){
@@ -1291,7 +1340,7 @@ function createHeader(view, key, initialTitle){
   });
 
   updateTitle(initialTitle);
-  return { el, updateTitle };
+  return { el, updateTitle, open, title: () => savedTitle };
 }
 
 
@@ -1301,6 +1350,9 @@ function closeDialog() {
   if (!document.activeElement || document.activeElement === document.body || document.activeElement.closest('[hidden]')) scopes[activeScope].ui.Input.focus({ preventScroll: true });
 }
 $('dialogClose').onclick = closeDialog;
+let dialogBusy = 0;
+dialog.addEventListener('click', e => { if (e.target === dialog && !dialogBusy) closeDialog(); });
+dialog.addEventListener('cancel', e => { if (dialogBusy) e.preventDefault(); });
 function openDialog(title) {
   dialogVersion++;
   $('dialogTitle').textContent = title;
@@ -1336,13 +1388,14 @@ async function dialogAction(action) {
   let error = $('dialogBody').querySelector('.dialog-error');
   if (!error) { error = element('p', 'dialog-error'); error.setAttribute('role', 'alert'); $('dialogBody').append(error); }
   error.textContent = 'Saving…';
+  dialogBusy++;
   try {
     await action();
     if (version === dialogVersion && dialog.open) closeDialog();
   } catch (err) {
     if (version === dialogVersion && dialog.open) error.textContent = err.message || 'Could not save. Please try again.';
     else toast(err.message || 'Could not save. Please try again.');
-  } finally { buttons.forEach((el, i) => { el.disabled = states[i]; }); }
+  } finally { dialogBusy--; buttons.forEach((el, i) => { el.disabled = states[i]; }); }
 }
 
 function openItemDialog(view, requestedKeys) {
@@ -1352,6 +1405,20 @@ function openItemDialog(view, requestedKeys) {
   const body = openDialog(single ? 'Organize clip' : `Organize ${keys.length} clips`);
   const description = element('p', '', single ? clipLabel(item) : 'Apply changes to the selected clips.');
   body.append(description);
+  const card = single ? view.cards.get(keys[0]) : null;
+  if (card && canEdit(item)) {
+    // The inline header is hidden on untitled touch cards; edit it from here instead.
+    body.append(button(item.title ? 'Edit title' : 'Add title', () => {
+      closeDialog();
+      card.el.scrollIntoView({ block: 'nearest' });
+      card.header.open();
+    }));
+  }
+  if (single && view.scope === 'clips' && owner()) {
+    const keep = button('Keep', null, 'sheet-keep');
+    bindKeepHold(keep, () => keepItems(view, keys), () => { if (!view.items[keys[0]] && dialog.open) closeDialog(); });
+    body.append(keep);
+  }
   const destination = document.createElement('select');
   fillGroupOptions(destination, view, !single);
   destination.value = single ? M.groupId(item) : '*';
@@ -1790,8 +1857,84 @@ async function addItem(view, type, content, destinationId = view.ui.Destination.
   if (view.query || view.type !== 'all') toast('Clip added. Clear your filters to see all clips.');
   return ref.key;
 }
+// Accounts with a single temporary slot see that state up front rather than on submit.
+function updateComposerState(view) {
+  const full = view.scope === 'clips' && !!currentUid && freeClipFull();
+  const input = view.ui.Input;
+  if (!input.dataset.placeholder) input.dataset.placeholder = input.placeholder;
+  input.disabled = full;
+  input.placeholder = full ? 'You have one active clip. Delete it or wait for it to fade.' : input.dataset.placeholder;
+  view.ui.Paste.disabled = view.ui.Image.disabled = full;
+  if (full) view.ui.Add.disabled = true;
+}
+function openViewDialog(view) {
+  const body = openDialog('View');
+  const wrap = element('div', 'view-options');
+  const type = view.ui.Type.cloneNode(true); type.removeAttribute('id'); type.value = view.type;
+  const sort = view.ui.Sort.cloneNode(true); sort.removeAttribute('id'); sort.value = view.sort;
+  type.onchange = () => { view.ui.Type.value = type.value; view.ui.Type.onchange(); };
+  sort.onchange = () => { view.ui.Sort.value = sort.value; view.ui.Sort.onchange(); };
+  wrap.append(field('Show', type), field('Sort by', sort));
+  const actions = element('div', 'dialog-actions');
+  actions.append(button('Reset', () => {
+    type.value = 'all'; sort.value = 'manual'; type.onchange(); sort.onchange();
+  }), button('Done', closeDialog, 'primary'));
+  body.append(wrap, actions);
+}
+function openHeaderMenu() {
+  const body = openDialog(activeScope === 'vault' ? 'Vault' : 'Fade');
+  const user = auth?.currentUser;
+  if (user?.email) body.append(element('p', 'dialog-help', 'Signed in as ' + user.email));
+  const actions = element('div', 'dialog-actions');
+  if (activeScope === 'vault') {
+    body.append(element('p', 'dialog-help', $('vaultStorageText').textContent));
+    body.append(button('Storage budget & passphrase', openStorageSettings));
+    actions.append(button('Exit vault', () => { closeDialog(); closeVault(); }));
+  }
+  actions.append(button('Sign out', () => { closeDialog(); auth.signOut().catch(err => toast(err.message || 'Could not sign out.')); }, 'danger-button'));
+  body.append(actions);
+}
+document.querySelectorAll('[data-header-menu]').forEach(btn => btn.onclick = openHeaderMenu);
+// One tap reads the system clipboard (iOS shows its own Paste confirmation). Falls back to the text box.
+async function pasteFromClipboard(view) {
+  if (view.adding) return;
+  try {
+    if (navigator.clipboard?.read) {
+      const items = await navigator.clipboard.read();
+      const files = [];
+      let text = '';
+      for (const item of items) {
+        const imageType = item.types.find(type => /^image\//i.test(type));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          files.push(new File([blob], 'pasted-image.' + (imageType.split('/')[1] || 'png').replace('jpeg', 'jpg'), { type: imageType }));
+        } else if (!text && item.types.includes('text/plain')) text = await (await item.getType('text/plain')).text();
+      }
+      if (files.length) { await processAttachments(view, files); return; }
+      if (text.trim()) { await addPastedText(view, text); return; }
+    } else if (navigator.clipboard?.readText) {
+      const text = await navigator.clipboard.readText();
+      if (text.trim()) { await addPastedText(view, text); return; }
+    } else throw new Error('unsupported');
+    toast('The clipboard is empty.');
+  } catch (err) {
+    if (err?.name === 'NotAllowedError' && /denied|dismiss/i.test(err.message || '')) return;
+    view.ui.Input.focus();
+    toast('This browser did not allow reading the clipboard. Long-press the text box and choose Paste.');
+  }
+}
+async function addPastedText(view, raw) {
+  const text = raw.trim();
+  if (view.scope === 'clips' && text.toLowerCase() === 'iii') { unlockVault(); return; }
+  view.adding = true; updateComposer(view);
+  try { await addItem(view, looksLikeUrl(text) ? 'link' : 'text', text); toast('Pasted as a new clip.'); }
+  catch (err) { toast(err.message || 'Could not add the pasted text.'); }
+  finally { view.adding = false; updateComposer(view); }
+}
+
 function updateComposer(view) {
-  view.ui.Add.disabled = view.adding || !view.ui.Input.value.trim();
+  view.ui.Add.disabled = view.adding || !view.ui.Input.value.trim() || view.ui.Input.disabled;
+  view.ui.Paste.disabled = view.adding || view.ui.Input.disabled;
   const compact = matchMedia('(min-width: 900px) and (pointer: fine)').matches;
   view.ui.Input.style.height = 'auto';
   view.ui.Input.style.height = Math.min(compact ? 112 : 140, Math.max(compact ? 40 : 48, view.ui.Input.scrollHeight)) + 'px';
@@ -1905,6 +2048,7 @@ function clearTypedVaultCode(target) {
 function openVault(animate = false) {
   if (!currentUid) return;
   activeScope = 'vault';
+  updateThemeColor();
   $('mainWorkspace').inert = true;
   $('vault').hidden = false;
   $('vault').classList.remove('vault-preparing');
@@ -1919,37 +2063,50 @@ function unlockVault() {
   if (!currentUid || activeScope === 'vault' || unlockTimer) return;
   if (!owner()) { toast('The vault is available only to the owner.'); return; }
   // A single text node receives timed character batches; the cursor stays after it.
+  // The full scene plays once per tab session; later entries and reduced motion get a short version.
   unlockTimer = -1;
   const popup = $('unlockPopup');
   const workspace = $('mainWorkspace');
   const vault = $('vault');
-  popup.classList.remove('show');
+  let seen = false;
+  try { seen = sessionStorage.getItem('fade.tty.seen') === '1'; sessionStorage.setItem('fade.tty.seen', '1'); } catch { /* Optional. */ }
+  const quick = seen || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  popup.classList.remove('show', 'skippable');
+  popup.classList.toggle('quick', quick);
   workspace.inert = true;
+  const finish = () => {
+    clearTimeout(unlockTimer); clearTimeout(unlockFinishTimer); clearTimeout(skipTimer);
+    unlockTimer = unlockFinishTimer = null;
+    popup.onclick = null;
+    stopVaultTyping();
+    popup.classList.remove('show', 'skippable', 'quick');
+    vault.classList.remove('vault-entering');
+    document.body.classList.remove('vault-breaching');
+  };
+  let skipTimer = 0;
   requestAnimationFrame(() => {
     if (!currentUid) { unlockTimer = null; return; }
     document.body.classList.add('vault-breaching');
     popup.classList.add('show');
-    startVaultTyping();
-    unlockTimer = setTimeout(() => {
-      if (currentUid) openVault(true);
-    }, 9200);
-    unlockFinishTimer = setTimeout(() => {
-      unlockTimer = unlockFinishTimer = null;
-      stopVaultTyping();
-      popup.classList.remove('show');
-      vault.classList.remove('vault-entering');
-      document.body.classList.remove('vault-breaching');
-    }, 10000);
+    if (!quick) startVaultTyping();
+    unlockTimer = setTimeout(() => { if (currentUid) openVault(true); }, quick ? 1000 : 9200);
+    unlockFinishTimer = setTimeout(finish, quick ? 1200 : 10000);
+    if (!quick) skipTimer = setTimeout(() => {
+      popup.classList.add('skippable');
+      popup.onclick = () => { if (currentUid && activeScope !== 'vault') openVault(false); finish(); };
+    }, 1500);
   });
 }
 function closeVault() {
   cancelDrag();
   if (dialog.open) closeDialog();
   $('vault').hidden = true; $('mainWorkspace').inert = false; activeScope = 'clips'; keyBuffer = ''; keyBufferTarget = null;
+  updateThemeColor(); requestAnimationFrame(updateBottomInset);
   lockVault(); // Every exit locks; the passphrase is needed again next time.
   scopes.clips.ui.Input.focus({ preventScroll: true });
 }
 $('vaultExit').onclick = closeVault;
+$('vaultBack').onclick = closeVault;
 document.addEventListener('keydown', e => {
   if (e.defaultPrevented || e.isComposing) return;
   if ($('keepWarning').open) return;
@@ -2028,6 +2185,19 @@ window.addEventListener('blur', clearImageDropState);
 
 function bindView(view) {
   view.ui.NewGroup.onclick = () => openGroupDialog(view);
+  view.ui.View.onclick = () => openViewDialog(view);
+  view.ui.Paste.onclick = () => pasteFromClipboard(view);
+  view.ui.SearchToggle.onclick = () => {
+    const toolbar = view.ui.SearchToggle.closest('.toolbar');
+    const open = !toolbar.classList.contains('search-open');
+    toolbar.classList.toggle('search-open', open);
+    view.ui.SearchToggle.setAttribute('aria-expanded', String(open));
+    if (open) view.ui.Search.focus();
+    else if (view.query) { view.ui.Search.value = ''; view.ui.Search.oninput(); }
+  };
+  // While typing on a phone, the toolbar steps aside so more of the board stays visible.
+  view.ui.Input.addEventListener('focus', () => { if (coarsePointer()) document.body.classList.add('composing'); });
+  view.ui.Input.addEventListener('blur', () => document.body.classList.remove('composing'));
   view.ui.Search.oninput = () => { view.query = view.ui.Search.value.trim(); view.selected.clear(); render(view); };
   view.ui.Type.onchange = () => { view.type = view.ui.Type.value; view.selected.clear(); render(view); };
   view.ui.Sort.onchange = () => { view.sort = view.ui.Sort.value; savePreferences(view); render(view); };
@@ -2075,5 +2245,51 @@ window.addEventListener('resize', () => {
   resizeTimer = setTimeout(() => {
     updateComposer(scopes[activeScope]);
     for (const rec of scopes[activeScope].cards.values()) checkExpand(rec);
+    updateBottomInset();
   }, 150);
 });
+// iOS Safari keeps the layout viewport full height under the keyboard; size the app to what is visible.
+if (window.visualViewport) {
+  const fit = () => {
+    document.documentElement.style.setProperty('--app-h', Math.round(visualViewport.height) + 'px');
+    if (visualViewport.offsetTop > 0 && document.activeElement?.matches('textarea, input')) window.scrollTo(0, 0);
+    updateBottomInset();
+  };
+  visualViewport.addEventListener('resize', fit);
+  fit();
+}
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service worker not registered:', err));
+}
+// Content arriving from the system share sheet (Android) or a link such as ?text=… (iOS Shortcuts).
+async function handleIncomingShare() {
+  const params = new URLSearchParams(location.search);
+  if (![...params.keys()].some(key => ['shared', 'text', 'url', 'title', 'compose'].includes(key))) return;
+  history.replaceState(null, '', location.pathname);
+  const view = scopes.clips;
+  if (params.has('compose')) { view.ui.Input.focus(); return; }
+  let text = [params.get('title'), params.get('text'), params.get('url')].filter(Boolean).join('\n').trim();
+  let files = [];
+  if (params.has('shared') && 'caches' in window) {
+    try {
+      const cache = await caches.open('fade-share');
+      const meta = await cache.match('shared/meta');
+      if (meta) {
+        const data = await meta.json();
+        text = [data.title, data.text, data.url].filter(Boolean).join('\n').trim();
+        for (const info of data.files || []) {
+          const res = await cache.match('shared/file/' + info.index);
+          if (res) files.push(new File([await res.blob()], info.name, { type: info.type }));
+        }
+      }
+      await caches.delete('fade-share');
+    } catch (err) { console.error('Could not read shared content', err); }
+    // Wait for the connection before adding what the share sheet sent.
+    for (let i = 0; i < 50 && !connected; i++) await new Promise(r => setTimeout(r, 200));
+    if (files.length) await processAttachments(view, files);
+    if (text) await addPastedText(view, text);
+    return;
+  }
+  // Links can be crafted by anyone, so text from the address bar is only placed in the box for review.
+  if (text) { view.ui.Input.value = text; updateComposer(view); view.ui.Input.focus(); toast('Review the shared text, then tap Add clip.'); }
+}
